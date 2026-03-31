@@ -1,0 +1,35 @@
+:root {
+  --bg: #0b0c0f;
+  --bg-panel: #141519;
+  --bg-input: #1a1b21;
+  --border: #2a2b33;
+  --text: #a0a0b0;
+  --text-bright: #e8e8f0;
+  --accent: #b7ff4a;
+  --accent-dim: rgba(183, 255, 74, 0.15);
+  --error: #ff6b6b;
+  --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  font: 15px/1.5 var(--sans);
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+#root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}

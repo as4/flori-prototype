@@ -1,0 +1,182 @@
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { Rive } from '@rive-app/canvas';
+import { VISEME_TO_ID } from '../hooks/useInworldTTS';
+import VisemeFallback from './VisemeFallback';
+
+const RiveCharacter = ({ currentViseme }) => {
+  const canvasRef = useRef(null);
+  const riveRef = useRef(null);
+  const visemeInputRef = useRef(null);
+
+  const [riveFile, setRiveFile] = useState(null);
+  const [stateMachines, setStateMachines] = useState([]);
+  const [selectedMachine, setSelectedMachine] = useState('');
+  const [inputName, setInputName] = useState('visemeId');
+  const [riveReady, setRiveReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleFileChange = useCallback(
+    event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setError(null);
+      setRiveReady(false);
+      setStateMachines([]);
+      setSelectedMachine('');
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        setRiveFile(reader.result);
+      };
+      reader.onerror = () => {
+        setError('Failed to read .riv file');
+      };
+      reader.readAsArrayBuffer(file);
+    },
+    []
+  );
+
+  // Load Rive file and discover state machines
+  useEffect(
+    () => {
+      if (!riveFile || !canvasRef.current) return;
+
+      // Clean up previous instance
+      if (riveRef.current) {
+        riveRef.current.cleanup();
+        riveRef.current = null;
+        visemeInputRef.current = null;
+      }
+
+      try {
+        const rive = new Rive({
+          buffer: riveFile,
+          canvas: canvasRef.current,
+          autoplay: false,
+          onLoad: () => {
+            const names = rive.stateMachineNames || [];
+            setStateMachines(names);
+
+            if (names.length === 1) {
+              setSelectedMachine(names[0]);
+            } else if (names.length === 0) {
+              setError('No state machines found in .riv file');
+            }
+
+            riveRef.current = rive;
+            rive.resizeDrawingSurfaceToCanvas();
+          },
+        });
+      } catch (err) {
+        setError(`Failed to load .riv: ${err.message}`);
+      }
+
+      return () => {
+        if (riveRef.current) {
+          riveRef.current.cleanup();
+          riveRef.current = null;
+          visemeInputRef.current = null;
+        }
+      };
+    },
+    [riveFile]
+  );
+
+  // Start selected state machine and find viseme input
+  useEffect(
+    () => {
+      const rive = riveRef.current;
+      if (!rive || !selectedMachine) return;
+
+      try {
+        rive.play(selectedMachine);
+
+        const inputs = rive.stateMachineInputs(selectedMachine) || [];
+        const visemeInput = inputs.find(
+          input => input.name === inputName
+        );
+
+        if (visemeInput) {
+          visemeInputRef.current = visemeInput;
+          setRiveReady(true);
+          setError(null);
+        } else {
+          const available = inputs.map(input => `${input.name} (${input.type})`).join(', ');
+          setError(`Input "${inputName}" not found. Available: ${available || 'none'}`);
+          setRiveReady(false);
+        }
+      } catch (err) {
+        setError(`State machine error: ${err.message}`);
+      }
+    },
+    [selectedMachine, inputName]
+  );
+
+  // Drive viseme input from currentViseme
+  useEffect(
+    () => {
+      if (!visemeInputRef.current) return;
+      const visemeId = VISEME_TO_ID[currentViseme] ?? 0;
+      visemeInputRef.current.value = visemeId;
+    },
+    [currentViseme]
+  );
+
+  return (
+    <div className="rive-character">
+      <div className="rive-controls">
+        <label className="file-picker">
+          <span>Load .riv file</span>
+          <input
+            type="file"
+            accept=".riv"
+            onChange={handleFileChange}
+          />
+        </label>
+
+        {stateMachines.length > 1 && (
+          <select
+            value={selectedMachine}
+            onChange={event => setSelectedMachine(event.target.value)}
+          >
+            <option value="">Select state machine...</option>
+            {stateMachines.map(
+              name => (
+                <option key={name} value={name}>{name}</option>
+              )
+            )}
+          </select>
+        )}
+
+        {selectedMachine && (
+          <input
+            type="text"
+            value={inputName}
+            onChange={event => setInputName(event.target.value)}
+            placeholder="Viseme input name"
+            className="input-name"
+          />
+        )}
+      </div>
+
+      {error && (
+        <div className="rive-error">{error}</div>
+      )}
+
+      <canvas
+        ref={canvasRef}
+        className="rive-canvas"
+        width={400}
+        height={400}
+        style={{ display: riveFile ? 'block' : 'none' }}
+      />
+
+      {!riveReady && (
+        <VisemeFallback currentViseme={currentViseme} />
+      )}
+    </div>
+  );
+};
+
+export default RiveCharacter;

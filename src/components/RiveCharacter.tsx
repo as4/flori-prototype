@@ -1,22 +1,33 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, type ChangeEvent } from 'react';
 import { Rive } from '@rive-app/canvas';
 import { VISEME_TO_ID } from '../hooks/useInworldTTS';
 import VisemeFallback from './VisemeFallback';
 
-const RiveCharacter = ({ currentViseme }) => {
-  const canvasRef = useRef(null);
-  const riveRef = useRef(null);
-  const visemeInputRef = useRef(null);
+interface StateMachineInput {
+  name: string;
+  type: number;
+  value: number;
+  fire: () => void;
+}
 
-  const [riveFile, setRiveFile] = useState(null);
-  const [stateMachines, setStateMachines] = useState([]);
+interface RiveCharacterProps {
+  currentViseme: string;
+}
+
+const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const riveRef = useRef<Rive | null>(null);
+  const visemeInputRef = useRef<StateMachineInput | null>(null);
+
+  const [riveFile, setRiveFile] = useState<ArrayBuffer | null>(null);
+  const [stateMachines, setStateMachines] = useState<string[]>([]);
   const [selectedMachine, setSelectedMachine] = useState('');
   const [inputName, setInputName] = useState('visemeId');
   const [riveReady, setRiveReady] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = useCallback(
-    event => {
+    (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -27,7 +38,7 @@ const RiveCharacter = ({ currentViseme }) => {
 
       const reader = new FileReader();
       reader.onload = () => {
-        setRiveFile(reader.result);
+        setRiveFile(reader.result as ArrayBuffer);
       };
       reader.onerror = () => {
         setError('Failed to read .riv file');
@@ -69,7 +80,7 @@ const RiveCharacter = ({ currentViseme }) => {
           },
         });
       } catch (err) {
-        setError(`Failed to load .riv: ${err.message}`);
+        setError(`Failed to load .riv: ${(err as Error).message}`);
       }
 
       return () => {
@@ -92,7 +103,7 @@ const RiveCharacter = ({ currentViseme }) => {
       try {
         rive.play(selectedMachine);
 
-        const inputs = rive.stateMachineInputs(selectedMachine) || [];
+        const inputs = (rive.stateMachineInputs(selectedMachine) || []) as StateMachineInput[];
         const visemeInput = inputs.find(
           input => input.name === inputName
         );
@@ -107,7 +118,7 @@ const RiveCharacter = ({ currentViseme }) => {
           setRiveReady(false);
         }
       } catch (err) {
-        setError(`State machine error: ${err.message}`);
+        setError(`State machine error: ${(err as Error).message}`);
       }
     },
     [selectedMachine, inputName]

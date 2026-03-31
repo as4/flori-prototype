@@ -2,10 +2,10 @@ import { useState, useCallback } from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import RiveCharacter from './components/RiveCharacter';
-import DebugConsole from './components/DebugConsole';
+import DebugConsole, { type DebugEntry } from './components/DebugConsole';
 import './App.css';
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<string, string> = {
   disconnected: 'Disconnected',
   connecting: 'Connecting...',
   connected: 'Connected',
@@ -18,10 +18,10 @@ const App = () => {
   const [apiKey, setApiKey] = useLocalStorage('flori-api-key');
   const [voiceId, setVoiceId] = useLocalStorage('flori-voice-id', 'Hana');
   const [text, setText] = useState('Hello! This is a test of the InWorld TTS viseme system.');
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState<DebugEntry[]>([]);
 
   const handleDebug = useCallback(
-    entry => {
+    (entry: DebugEntry) => {
       setLogs(prev => [...prev, entry]);
     },
     []
@@ -40,7 +40,7 @@ const App = () => {
     sendText(text.trim());
   };
 
-  const handleKeyDown = event => {
+  const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey && isConnected) {
       event.preventDefault();
       handleSend();

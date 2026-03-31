@@ -1,23 +1,22 @@
 import { useState } from 'react';
 import { VISEME_TO_ID } from '../hooks/useInworldTTS';
 
-const VISEME_MOUTHS = {
-  sil: { label: 'Silent', mouth: '—' },
-  aei: { label: 'AEI', mouth: '😮' },
-  o: { label: 'O', mouth: '😯' },
-  ee: { label: 'EE', mouth: '😁' },
-  bmp: { label: 'BMP', mouth: '😐' },
-  fv: { label: 'FV', mouth: '🫦' },
-  l: { label: 'L', mouth: '😛' },
-  r: { label: 'R', mouth: '😬' },
-  th: { label: 'TH', mouth: '😝' },
-  qw: { label: 'QW', mouth: '😗' },
-  cdgknstxyz: { label: 'CDGK...', mouth: '😶' },
+const VISEME_MOUTHS: Record<string, { label: string; mouth: string }> = {
+  sil: { label: 'Silent', mouth: '\u2014' },
+  aei: { label: 'AEI', mouth: '\uD83D\uDE2E' },
+  o: { label: 'O', mouth: '\uD83D\uDE2F' },
+  ee: { label: 'EE', mouth: '\uD83D\uDE01' },
+  bmp: { label: 'BMP', mouth: '\uD83D\uDE10' },
+  fv: { label: 'FV', mouth: '\uD83E\uDEE6' },
+  l: { label: 'L', mouth: '\uD83D\uDE1B' },
+  r: { label: 'R', mouth: '\uD83D\uDE2C' },
+  th: { label: 'TH', mouth: '\uD83D\uDE1D' },
+  qw: { label: 'QW', mouth: '\uD83D\uDE17' },
+  cdgknstxyz: { label: 'CDGK...', mouth: '\uD83D\uDE36' },
 };
 
-// SVG mouth shapes — simplified front-view lips for each viseme
-const SvgMouth = ({ viseme }) => {
-  const shapes = {
+const SvgMouth = ({ viseme }: { viseme: string }) => {
+  const shapes: Record<string, React.ReactNode> = {
     sil: (
       <path d="M30 50 Q50 52 70 50" stroke="#e8e8f0" strokeWidth="3" fill="none" strokeLinecap="round" />
     ),
@@ -66,8 +65,12 @@ const SvgMouth = ({ viseme }) => {
   );
 };
 
-const VisemeFallback = ({ currentViseme }) => {
-  const [mode, setMode] = useState('emoji');
+interface VisemeFallbackProps {
+  currentViseme: string;
+}
+
+const VisemeFallback = ({ currentViseme }: VisemeFallbackProps) => {
+  const [mode, setMode] = useState<'emoji' | 'svg'>('emoji');
   const visemeId = VISEME_TO_ID[currentViseme] ?? 0;
   const { label, mouth } = VISEME_MOUTHS[currentViseme] ?? VISEME_MOUTHS.sil;
 

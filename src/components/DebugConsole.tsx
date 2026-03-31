@@ -1,6 +1,12 @@
 import { useRef, useEffect } from 'react';
 
-const formatTime = timestamp => {
+export interface DebugEntry {
+  time: number;
+  message: string;
+  data?: string | Record<string, unknown>;
+}
+
+const formatTime = (timestamp: number) => {
   const date = new Date(timestamp);
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -9,8 +15,12 @@ const formatTime = timestamp => {
   return `${hours}:${minutes}:${seconds}.${ms}`;
 };
 
-const DebugConsole = ({ logs }) => {
-  const containerRef = useRef(null);
+interface DebugConsoleProps {
+  logs: DebugEntry[];
+}
+
+const DebugConsole = ({ logs }: DebugConsoleProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new logs
   useEffect(

@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
+import type { DebugEntry } from '../components/DebugConsole';
 
 const WS_URL = 'wss://api.inworld.ai/tts/v1/voice:streamBidirectional';
 const CONTEXT_ID = 'flori-ctx';
 
-const VISEME_TO_ID = {
+export const VISEME_TO_ID: Record<string, number> = {
   sil: 0,
   aei: 1,
   o: 2,
@@ -17,22 +18,34 @@ const VISEME_TO_ID = {
   cdgknstxyz: 10,
 };
 
-export { VISEME_TO_ID };
+interface VisemeEntry {
+  viseme: string;
+  phone: string;
+  start: number;
+  duration: number;
+  end?: number;
+}
 
-const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
+interface UseInworldTTSOptions {
+  apiKey: string;
+  voiceId: string;
+  onDebug?: (entry: DebugEntry) => void;
+}
+
+const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
   const [status, setStatus] = useState('disconnected');
   const [currentViseme, setCurrentViseme] = useState('sil');
 
-  const wsRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const visemeTimelineRef = useRef([]);
-  const rafIdRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const audioStartTimeRef = useRef(null);
-  const sourceNodeRef = useRef(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioChunksRef = useRef<string[]>([]);
+  const visemeTimelineRef = useRef<VisemeEntry[]>([]);
+  const rafIdRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioStartTimeRef = useRef<number | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
   const log = useCallback(
-    (message, data) => {
+    (message: string, data?: DebugEntry['data']) => {
       onDebug?.({ time: Date.now(), message, data });
     },
     [onDebug]
@@ -45,7 +58,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
         rafIdRef.current = null;
       }
       if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch (_err) { /* already stopped */ }
+        try { sourceNodeRef.current.stop(); } catch { /* already stopped */ }
         sourceNodeRef.current = null;
       }
       audioStartTimeRef.current = null;
@@ -116,15 +129,15 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
           const elapsed = audioContext.currentTime - audioStartTimeRef.current;
 
           // Advance cursor past entries that have fully ended
-          while (cursor < timeline.length && timeline[cursor].end <= elapsed) {
+          while (cursor < timeline.length && timeline[cursor].end! <= elapsed) {
             cursor++;
           }
 
           // Check if current cursor entry is active
-          let activeViseme = null;
+          let activeViseme: string | null = null;
           if (cursor < timeline.length && elapsed >= timeline[cursor].start) {
             activeViseme = timeline[cursor].viseme;
-            lastActiveEnd = timeline[cursor].end;
+            lastActiveEnd = timeline[cursor].end!;
           }
 
           // If no active viseme, hold the previous one briefly before going silent
@@ -158,7 +171,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
           log('Audio source ended');
         };
       } catch (err) {
-        log('Audio decode/play error', err.message);
+        log('Audio decode/play error', (err as Error).message);
         setStatus('connected');
       }
     },
@@ -267,12 +280,12 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
             log('Server error', result.status);
           }
         } catch (err) {
-          log('Message parse error', err.message);
+          log('Message parse error', (err as Error).message);
         }
       };
 
-      ws.onerror = event => {
-        log('WebSocket error', event);
+      ws.onerror = () => {
+        log('WebSocket error');
         setStatus('error');
       };
 
@@ -286,7 +299,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }) => {
   );
 
   const sendText = useCallback(
-    text => {
+    (text: string) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         log('WebSocket not connected');

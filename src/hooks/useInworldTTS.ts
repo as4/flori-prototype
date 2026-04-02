@@ -43,6 +43,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioStartTimeRef = useRef<number | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const startPlaybackRef = useRef<() => void>(() => {});
 
   const log = useCallback(
     (message: string, data?: DebugEntry['data']) => {
@@ -103,6 +104,11 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
         audioContextRef.current = new AudioContext();
       }
       const audioContext = audioContextRef.current;
+
+      // Resume AudioContext if suspended (browser autoplay policy)
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
 
       try {
         const audioBuffer = await audioContext.decodeAudioData(combined.buffer);
@@ -177,6 +183,9 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
     },
     [log, stopPlayback]
   );
+
+  // Keep ref in sync so WebSocket handler always calls latest version
+  startPlaybackRef.current = startPlayback;
 
   const connect = useCallback(
     () => {
@@ -267,7 +276,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
           // Flush completed — all audio received, start playback
           if (result.flushCompleted) {
             log('Flush completed — starting playback');
-            startPlayback();
+            startPlaybackRef.current();
           }
 
           // Context closed
@@ -295,7 +304,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
         wsRef.current = null;
       };
     },
-    [apiKey, voiceId, log, stopPlayback, startPlayback]
+    [apiKey, voiceId, log, stopPlayback]
   );
 
   const sendText = useCallback(

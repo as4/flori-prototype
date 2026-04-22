@@ -1,10 +1,18 @@
 import { useRef, useEffect } from 'react';
 
+////////////////////////////////////////////////////////////////////////////////
+
 export interface DebugEntry {
   time: number;
   message: string;
   data?: string | Record<string, unknown>;
 }
+
+interface DebugConsoleProps {
+  logs: DebugEntry[];
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 const formatTime = (timestamp: number) => {
   const date = new Date(timestamp);
@@ -15,14 +23,17 @@ const formatTime = (timestamp: number) => {
   return `${hours}:${minutes}:${seconds}.${ms}`;
 };
 
-interface DebugConsoleProps {
-  logs: DebugEntry[];
-}
+////////////////////////////////////////////////////////////////////////////////
 
 const DebugConsole = ({ logs }: DebugConsoleProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new logs
+  //--------------------------------------------------------------------------
+  //
+  //  Effects
+  //
+  //--------------------------------------------------------------------------
+
   useEffect(
     () => {
       const container = containerRef.current;
@@ -33,13 +44,15 @@ const DebugConsole = ({ logs }: DebugConsoleProps) => {
     [logs]
   );
 
+  ////////////////////////////////////////////////////////////////////////////////
+
   return (
     <div className="debug-console">
       <div className="debug-header">Debug Console</div>
       <div className="debug-logs" ref={containerRef}>
         {logs.map(
-          (entry, idx) => (
-            <div key={idx} className="debug-entry">
+          (entry, index) => (
+            <div key={index} className="debug-entry">
               <span className="debug-time">{formatTime(entry.time)}</span>
               <span className="debug-message">{entry.message}</span>
               {entry.data && (

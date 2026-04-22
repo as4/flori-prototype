@@ -3,6 +3,8 @@ import { Rive } from '@rive-app/canvas';
 import { VISEME_TO_ID } from '../hooks/useInworldTTS';
 import VisemeFallback from './VisemeFallback';
 
+////////////////////////////////////////////////////////////////////////////////
+
 interface StateMachineInput {
   name: string;
   type: number;
@@ -14,17 +16,26 @@ interface RiveCharacterProps {
   currentViseme: string;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const riveRef = useRef<Rive | null>(null);
   const visemeInputRef = useRef<StateMachineInput | null>(null);
 
+  // State
   const [riveFile, setRiveFile] = useState<ArrayBuffer | null>(null);
   const [stateMachines, setStateMachines] = useState<string[]>([]);
   const [selectedMachine, setSelectedMachine] = useState('');
   const [inputName, setInputName] = useState('visemeId');
   const [riveReady, setRiveReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  //--------------------------------------------------------------------------
+  //
+  //  Event handlers
+  //
+  //--------------------------------------------------------------------------
 
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -48,12 +59,17 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
     []
   );
 
-  // Load Rive file and discover state machines
+  //--------------------------------------------------------------------------
+  //
+  //  Effects
+  //
+  //--------------------------------------------------------------------------
+
+  // Load .riv file and discover state machines
   useEffect(
     () => {
       if (!riveFile || !canvasRef.current) return;
 
-      // Clean up previous instance
       if (riveRef.current) {
         riveRef.current.cleanup();
         riveRef.current = null;
@@ -69,8 +85,9 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
             const names = rive.stateMachineNames || [];
             setStateMachines(names);
 
+            const [firstMachine] = names;
             if (names.length === 1) {
-              setSelectedMachine(names[0]);
+              setSelectedMachine(firstMachine);
             } else if (names.length === 0) {
               setError('No state machines found in .riv file');
             }
@@ -79,8 +96,8 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
             rive.resizeDrawingSurfaceToCanvas();
           },
         });
-      } catch (err) {
-        setError(`Failed to load .riv: ${(err as Error).message}`);
+      } catch (error) {
+        setError(`Failed to load .riv: ${(error as Error).message}`);
       }
 
       return () => {
@@ -94,7 +111,7 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
     [riveFile]
   );
 
-  // Start selected state machine and find viseme input
+  // Start selected state machine and bind the viseme input
   useEffect(
     () => {
       const rive = riveRef.current;
@@ -117,14 +134,14 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
           setError(`Input "${inputName}" not found. Available: ${available || 'none'}`);
           setRiveReady(false);
         }
-      } catch (err) {
-        setError(`State machine error: ${(err as Error).message}`);
+      } catch (error) {
+        setError(`State machine error: ${(error as Error).message}`);
       }
     },
     [selectedMachine, inputName]
   );
 
-  // Drive viseme input from currentViseme
+  // Drive the viseme input from currentViseme
   useEffect(
     () => {
       if (!visemeInputRef.current) return;
@@ -133,6 +150,8 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
     },
     [currentViseme]
   );
+
+  ////////////////////////////////////////////////////////////////////////////////
 
   return (
     <div className="rive-character">

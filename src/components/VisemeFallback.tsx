@@ -1,19 +1,27 @@
 import { useState } from 'react';
 import { VISEME_TO_ID } from '../hooks/useInworldTTS';
 
+////////////////////////////////////////////////////////////////////////////////
+
 const VISEME_MOUTHS: Record<string, { label: string; mouth: string }> = {
-  sil: { label: 'Silent', mouth: '\u2014' },
-  aei: { label: 'AEI', mouth: '\uD83D\uDE2E' },
-  o: { label: 'O', mouth: '\uD83D\uDE2F' },
-  ee: { label: 'EE', mouth: '\uD83D\uDE01' },
-  bmp: { label: 'BMP', mouth: '\uD83D\uDE10' },
-  fv: { label: 'FV', mouth: '\uD83E\uDEE6' },
-  l: { label: 'L', mouth: '\uD83D\uDE1B' },
-  r: { label: 'R', mouth: '\uD83D\uDE2C' },
-  th: { label: 'TH', mouth: '\uD83D\uDE1D' },
-  qw: { label: 'QW', mouth: '\uD83D\uDE17' },
-  cdgknstxyz: { label: 'CDGK...', mouth: '\uD83D\uDE36' },
+  sil: { label: 'Silent', mouth: '—' },
+  aei: { label: 'AEI', mouth: '😮' },
+  o: { label: 'O', mouth: '😯' },
+  ee: { label: 'EE', mouth: '😁' },
+  bmp: { label: 'BMP', mouth: '😐' },
+  fv: { label: 'FV', mouth: '🫦' },
+  l: { label: 'L', mouth: '😛' },
+  r: { label: 'R', mouth: '😬' },
+  th: { label: 'TH', mouth: '😝' },
+  qw: { label: 'QW', mouth: '😗' },
+  cdgknstxyz: { label: 'CDGK...', mouth: '😶' },
 };
+
+interface VisemeFallbackProps {
+  currentViseme: string;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 const SvgMouth = ({ viseme }: { viseme: string }) => {
   const shapes: Record<string, React.ReactNode> = {
@@ -65,14 +73,15 @@ const SvgMouth = ({ viseme }: { viseme: string }) => {
   );
 };
 
-interface VisemeFallbackProps {
-  currentViseme: string;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 const VisemeFallback = ({ currentViseme }: VisemeFallbackProps) => {
   const [mode, setMode] = useState<'emoji' | 'svg'>('emoji');
+
   const visemeId = VISEME_TO_ID[currentViseme] ?? 0;
   const { label, mouth } = VISEME_MOUTHS[currentViseme] ?? VISEME_MOUTHS.sil;
+
+  ////////////////////////////////////////////////////////////////////////////////
 
   return (
     <div className="viseme-fallback">

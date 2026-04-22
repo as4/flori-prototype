@@ -232,7 +232,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
         const createMsg = {
           create: {
             voiceId: voiceId || 'Hana',
-            modelId: 'inworld-tts-1.5-max',
+            modelId: 'inworld-tts-1.5-mini',
             audioConfig: {
               audioEncoding: 'MP3',
               sampleRateHertz: 48000,

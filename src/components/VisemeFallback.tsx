@@ -101,10 +101,11 @@ const VisemeFallback = ({ currentViseme }: VisemeFallbackProps) => {
       </div>
 
       <div className="viseme-mouth">
-        {mode === 'emoji' ?
-          mouth
-          :
-          <SvgMouth viseme={currentViseme} />
+        {
+          mode === 'emoji' ?
+            mouth
+            :
+            <SvgMouth viseme={currentViseme} />
         }
       </div>
       <div className="viseme-label">{label}</div>

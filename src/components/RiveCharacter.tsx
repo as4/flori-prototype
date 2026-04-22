@@ -165,7 +165,8 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
           />
         </label>
 
-        {stateMachines.length > 1 && (
+        {
+          stateMachines.length > 1 &&
           <select
             value={selectedMachine}
             onChange={event => setSelectedMachine(event.target.value)}
@@ -177,34 +178,37 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
               )
             )}
           </select>
-        )}
+        }
 
-        {selectedMachine && (
+        {
+          selectedMachine &&
           <input
+            className="input-name"
             type="text"
             value={inputName}
-            onChange={event => setInputName(event.target.value)}
             placeholder="Viseme input name"
-            className="input-name"
+            onChange={event => setInputName(event.target.value)}
           />
-        )}
+        }
       </div>
 
-      {error && (
+      {
+        error &&
         <div className="rive-error">{error}</div>
-      )}
+      }
 
       <canvas
         ref={canvasRef}
         className="rive-canvas"
+        style={{ display: riveFile ? 'block' : 'none' }}
         width={400}
         height={400}
-        style={{ display: riveFile ? 'block' : 'none' }}
       />
 
-      {!riveReady && (
+      {
+        !riveReady &&
         <VisemeFallback currentViseme={currentViseme} />
-      )}
+      }
     </div>
   );
 };

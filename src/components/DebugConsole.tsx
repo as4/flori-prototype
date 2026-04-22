@@ -55,21 +55,24 @@ const DebugConsole = ({ logs }: DebugConsoleProps) => {
             <div key={index} className="debug-entry">
               <span className="debug-time">{formatTime(entry.time)}</span>
               <span className="debug-message">{entry.message}</span>
-              {entry.data && (
+              {
+                entry.data &&
                 <span className="debug-data">
-                  {typeof entry.data === 'string' ?
-                    entry.data
-                    :
-                    JSON.stringify(entry.data)
+                  {
+                    typeof entry.data === 'string' ?
+                      entry.data
+                      :
+                      JSON.stringify(entry.data)
                   }
                 </span>
-              )}
+              }
             </div>
           )
         )}
-        {logs.length === 0 && (
+        {
+          logs.length === 0 &&
           <div className="debug-empty">Waiting for events...</div>
-        )}
+        }
       </div>
     </div>
   );

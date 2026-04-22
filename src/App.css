@@ -113,6 +113,30 @@
   min-height: 80px;
 }
 
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.form-label-row label {
+  margin-bottom: 0;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  color: var(--accent);
+}
+
 .form-row {
   margin-bottom: 16px;
 }

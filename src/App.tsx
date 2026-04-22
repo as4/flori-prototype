@@ -20,7 +20,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are Flori, a friendly speaking battery character. Chat casually about everyday health topics — sleep, hydration, movement, stress, screen breaks. Keep replies to 1–2 short sentences. Be warm and playful, like a cute sidekick. You are NOT a doctor: never give medical diagnoses, dosage advice, or treat anything serious — gently redirect to a real professional when it comes up.';
+  'You are Flori, a friendly speaking battery character. Chat casually about everyday health topics — sleep, hydration, movement, stress, screen breaks. Keep replies to 1–2 short sentences. Be warm and playful, like a cute sidekick. You are NOT a doctor: never give medical diagnoses, dosage advice, or treat anything serious — gently redirect to a real professional when it comes up. Your responses will be spoken aloud by a text-to-speech engine, so write in plain words only — no emojis, no emoticons, no asterisks or markdown, no parenthetical stage directions.';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,8 +189,8 @@ const App = () => {
               id="apiKey"
               type="password"
               value={apiKey}
-              onChange={event => setApiKey(event.target.value)}
               placeholder="Base64 InWorld key..."
+              onChange={event => setApiKey(event.target.value)}
             />
           </div>
 
@@ -200,8 +200,8 @@ const App = () => {
               id="googleKey"
               type="password"
               value={googleKey}
-              onChange={event => setGoogleKey(event.target.value)}
               placeholder="Google AI Studio key (free tier)..."
+              onChange={event => setGoogleKey(event.target.value)}
             />
           </div>
 
@@ -211,39 +211,52 @@ const App = () => {
               id="voiceId"
               type="text"
               value={voiceId}
-              onChange={event => setVoiceId(event.target.value)}
               placeholder="e.g. Hana, Dennis, Ashley..."
+              onChange={event => setVoiceId(event.target.value)}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="persona">Persona / system prompt</label>
+            <div className="form-label-row">
+              <label htmlFor="persona">Persona / system prompt</label>
+              {
+                systemPrompt !== DEFAULT_SYSTEM_PROMPT &&
+                <button
+                  className="link-btn"
+                  type="button"
+                  onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+                >
+                  Reset to default
+                </button>
+              }
+            </div>
             <textarea
               id="persona"
               value={systemPrompt}
-              onChange={event => setSystemPrompt(event.target.value)}
               rows={4}
+              onChange={event => setSystemPrompt(event.target.value)}
             />
           </div>
 
           <div className="form-row">
-            {isConnected ?
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={disconnect}
-              >
-                Disconnect
-              </button>
-              :
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!apiKey || status === 'connecting'}
-                onClick={connect}
-              >
-                Connect
-              </button>
+            {
+              isConnected ?
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={disconnect}
+                >
+                  Disconnect
+                </button>
+                :
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={!apiKey || status === 'connecting'}
+                  onClick={connect}
+                >
+                  Connect
+                </button>
             }
           </div>
 
@@ -254,19 +267,21 @@ const App = () => {
             onPressEnd={stopListening}
           />
 
-          {!speechSupported && (
+          {
+            !speechSupported &&
             <div className="rive-error">
               Speech recognition not supported in this browser — use the text input below.
             </div>
-          )}
+          }
 
-          {transcript.length > 0 && (
+          {
+            transcript.length > 0 &&
             <div className="transcript">
               <div className="transcript-header">
                 <span>Conversation</span>
                 <button
-                  type="button"
                   className="transcript-reset"
+                  type="button"
                   onClick={handleResetChat}
                 >
                   Reset
@@ -283,7 +298,7 @@ const App = () => {
                 )}
               </div>
             </div>
-          )}
+          }
 
           <details className="text-fallback">
             <summary>Text input (debugging)</summary>
@@ -291,16 +306,16 @@ const App = () => {
               <textarea
                 id="text"
                 value={text}
-                disabled={!isConnected}
                 placeholder="Type something..."
                 rows={3}
+                disabled={!isConnected}
                 onChange={event => setText(event.target.value)}
                 onKeyDown={handleKeyDown}
               />
             </div>
             <button
-              type="button"
               className="btn btn-primary"
+              type="button"
               disabled={!isConnected || !text.trim() || status === 'processing'}
               onClick={handleSend}
             >

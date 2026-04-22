@@ -73,8 +73,8 @@ const PushToTalkButton = ({
   return (
     <div className={`ptt-wrapper ${className ?? ''}`}>
       <button
-        type="button"
         className={`ptt-button ptt-${state}`}
+        type="button"
         disabled={disabled}
         onPointerDown={event => {
           event.preventDefault();
@@ -87,9 +87,10 @@ const PushToTalkButton = ({
         <span className="ptt-icon" aria-hidden="true">🎤</span>
       </button>
       <div className="ptt-label">{LABELS[state]}</div>
-      {interim && (
+      {
+        interim &&
         <div className="ptt-interim">"{interim}"</div>
-      )}
+      }
       <div className="ptt-hint">or hold Space</div>
     </div>
   );

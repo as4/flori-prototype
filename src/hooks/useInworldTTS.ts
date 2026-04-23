@@ -76,6 +76,12 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
       }
+      // On iOS, declare our audio as "playback" so the silent/ringer switch
+      // doesn't mute Flori. Supported since Safari 17.
+      const audioSession = (navigator as Navigator & {audioSession?: {type: string}}).audioSession;
+      if (audioSession) {
+        try { audioSession.type = 'playback'; } catch { /* unsupported type */ }
+      }
       if (audioPrimedRef.current) return;
       try {
         const silent = audioContext.createBuffer(1, 1, 22050);

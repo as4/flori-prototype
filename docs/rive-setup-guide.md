@@ -47,3 +47,39 @@ You need **11 mouth poses** for your character. Each one represents a group of s
 - Poses 0 and 10 (Silent and Rest) look similar but aren't the same — Rest has the mouth very slightly open since the character is mid-speech
 - The transitions happen fast (some sounds are only 40-80ms), so keep your animations simple and snappy
 - You can add idle animations (blinking, breathing) on separate layers — they won't interfere with the mouth
+
+## Step 4 (optional): Emotion animations
+
+We want Flori to emote while talking — look happy, sad, surprised, etc. The lip-sync from Steps 1–3 is unchanged; emotions are added on **top** of it.
+
+### How it's set up
+
+1. In the **same state machine** you already have, add a second input:
+   - Type: **Number**
+   - Name (exactly): `emotionId`
+2. Each emotion gets its own ID. Use this mapping so it matches what the app sends:
+
+| ID | Name | How Flori should look |
+|----|------|------------------------|
+| 0 | Neutral | Default resting expression |
+| 1 | Happy | Smiling eyes, cheerful body language |
+| 2 | Sad | Droopy eyes, slumped posture |
+| 3 | Surprised | Wide eyes, raised brows |
+| 4 | Thinking | One side tilted, eyes looking up |
+
+You can suggest more — just let us know the names and we'll match them up.
+
+3. Put the emotion animations on **a separate layer** from the mouth. This is important — if the emotion layer animates the mouth too, it will fight the lip-sync and the mouth will twitch. Think of it like:
+   - **Layer 1 (mouth)** — driven by `visemeId`. Changes rapidly (many times per second during speech).
+   - **Layer 2 (face / body)** — driven by `emotionId`. Changes rarely (once per reply, or less).
+
+### Tips for emotions
+
+- **Blend the transition smoothly** — emotion changes should take ~300-500ms, not snap. A Blend State between emotion poses looks natural.
+- **Neutral (ID 0) is the safe default** — the app will set this when Flori isn't actively emoting, and also when the page first loads before any reply comes in.
+- **Don't animate the mouth in emotion layers** — any mouth shape here will override the lip-sync. If a happy expression needs a smile, handle it via eyes, cheeks, body, or a very subtle non-lip-sync mouth element.
+- The character should still lip-sync correctly while any emotion is active. If lip-sync breaks when emotions change, the mouth is probably being touched in two layers at once — move mouth keyframes off the emotion layer.
+
+### Delivery
+
+Overwrite the same `.riv` file you gave us before. Same path, same filename. The app will pick it up automatically on the next reload — no code change needed as long as the input is named exactly `emotionId`.

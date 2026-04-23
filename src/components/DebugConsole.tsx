@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import {useRef, useEffect} from 'react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +25,7 @@ const formatTime = (timestamp: number) => {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const DebugConsole = ({ logs }: DebugConsoleProps) => {
+const DebugConsole = ({logs}: DebugConsoleProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   //--------------------------------------------------------------------------

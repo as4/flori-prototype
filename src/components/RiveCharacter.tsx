@@ -1,6 +1,7 @@
-import { useRef, useEffect, useState, useCallback, type ChangeEvent } from 'react';
-import { Rive } from '@rive-app/canvas';
-import { VISEME_TO_ID } from '../hooks/useInworldTTS';
+import {useRef, useEffect, useState, useCallback, type ChangeEvent} from 'react';
+import {Rive} from '@rive-app/canvas';
+import {DEFAULT_RIV_URL} from '../config';
+import {VISEME_TO_ID} from '../hooks/useInworldTTS';
 import VisemeFallback from './VisemeFallback';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,18 +13,21 @@ interface StateMachineInput {
   fire: () => void;
 }
 
+type DisplayMode = 'rive' | 'emoji' | 'svg';
+
 interface RiveCharacterProps {
   currentViseme: string;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
+const RiveCharacter = ({currentViseme}: RiveCharacterProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const riveRef = useRef<Rive | null>(null);
   const visemeInputRef = useRef<StateMachineInput | null>(null);
 
   // State
+  const [mode, setMode] = useState<DisplayMode>('rive');
   const [riveFile, setRiveFile] = useState<ArrayBuffer | null>(null);
   const [stateMachines, setStateMachines] = useState<string[]>([]);
   const [selectedMachine, setSelectedMachine] = useState('');
@@ -64,6 +68,27 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
   //  Effects
   //
   //--------------------------------------------------------------------------
+
+  // Auto-load the bundled default .riv on first mount so the app renders a
+  // character without requiring an upload.
+  useEffect(
+    () => {
+      let cancelled = false;
+      fetch(DEFAULT_RIV_URL)
+        .then(response => {
+          if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+          return response.arrayBuffer();
+        })
+        .then(buffer => {
+          if (!cancelled) setRiveFile(buffer);
+        })
+        .catch(fetchError => {
+          if (!cancelled) setError(`Couldn't load bundled .riv: ${(fetchError as Error).message}`);
+        });
+      return () => { cancelled = true; };
+    },
+    []
+  );
 
   // Load .riv file and discover state machines
   useEffect(
@@ -151,13 +176,48 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
     [currentViseme]
   );
 
+  // If Rive mode is active but we have an error or no binding, fall back to
+  // emoji so the user still sees visemes reacting.
+  useEffect(
+    () => {
+      if (mode === 'rive' && error && !riveReady) {
+        setMode('emoji');
+      }
+    },
+    [mode, error, riveReady]
+  );
+
   ////////////////////////////////////////////////////////////////////////////////
 
   return (
     <div className="rive-character">
+      <div className="mode-switcher">
+        <button
+          className={mode === 'rive' ? 'active' : ''}
+          type="button"
+          onClick={() => setMode('rive')}
+        >
+          Rive
+        </button>
+        <button
+          className={mode === 'emoji' ? 'active' : ''}
+          type="button"
+          onClick={() => setMode('emoji')}
+        >
+          Emoji
+        </button>
+        <button
+          className={mode === 'svg' ? 'active' : ''}
+          type="button"
+          onClick={() => setMode('svg')}
+        >
+          SVG
+        </button>
+      </div>
+
       <div className="rive-controls">
         <label className="file-picker">
-          <span>Load .riv file</span>
+          <span>Upload .riv</span>
           <input
             type="file"
             accept=".riv"
@@ -197,18 +257,20 @@ const RiveCharacter = ({ currentViseme }: RiveCharacterProps) => {
         <div className="rive-error">{error}</div>
       }
 
-      <canvas
-        ref={canvasRef}
-        className="rive-canvas"
-        style={{ display: riveFile ? 'block' : 'none' }}
-        width={400}
-        height={400}
-      />
+      <div className="character-stage">
+        <canvas
+          ref={canvasRef}
+          className="rive-canvas"
+          style={{display: mode === 'rive' && riveFile ? 'block' : 'none'}}
+          width={400}
+          height={400}
+        />
 
-      {
-        !riveReady &&
-        <VisemeFallback currentViseme={currentViseme} />
-      }
+        {
+          mode !== 'rive' &&
+          <VisemeFallback mode={mode} currentViseme={currentViseme} />
+        }
+      </div>
     </div>
   );
 };

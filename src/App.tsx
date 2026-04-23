@@ -1,11 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
+import {useState, useCallback, useMemo, useRef} from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useGeminiChat from './hooks/useGeminiChat';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
 import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
-import DebugConsole, { type DebugEntry } from './components/DebugConsole';
+import DebugConsole, {type DebugEntry} from './components/DebugConsole';
 import './App.css';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +41,10 @@ const App = () => {
   const [text, setText] = useState('Hello! This is a test of the InWorld TTS viseme system.');
   const [logs, setLogs] = useState<DebugEntry[]>([]);
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const showDebugRef = useRef(showDebug);
+  showDebugRef.current = showDebug;
 
   //--------------------------------------------------------------------------
   //
@@ -50,6 +54,7 @@ const App = () => {
 
   const handleDebug = useCallback(
     (entry: DebugEntry) => {
+      if (!showDebugRef.current) return;
       setLogs(previous => [...previous, entry]);
     },
     []
@@ -57,12 +62,12 @@ const App = () => {
 
   const log = useCallback(
     (message: string, data?: DebugEntry['data']) => {
-      handleDebug({ time: Date.now(), message, data });
+      handleDebug({time: Date.now(), message, data});
     },
     [handleDebug]
   );
 
-  const { status, currentViseme, connect, sendText, disconnect, ensureAudioReady } = useInworldTTS({
+  const {status, currentViseme, connect, sendText, disconnect, ensureAudioReady} = useInworldTTS({
     apiKey,
     voiceId,
     onDebug: handleDebug,
@@ -74,7 +79,7 @@ const App = () => {
     (fullText: string) => {
       const reply = fullText.trim();
       if (!reply) return;
-      setTranscript(previous => [...previous, { role: 'assistant', text: reply }]);
+      setTranscript(previous => [...previous, {role: 'assistant', text: reply}]);
       log('LLM reply', reply);
       if (isConnected) {
         sendText(reply);
@@ -92,7 +97,7 @@ const App = () => {
     [log]
   );
 
-  const { send: sendToChat, isStreaming, reset: resetChat } = useGeminiChat({
+  const {send: sendToChat, isStreaming, reset: resetChat} = useGeminiChat({
     apiKey: googleKey,
     systemPrompt,
     onDone: handleChatDone,
@@ -101,7 +106,7 @@ const App = () => {
 
   const handleSttFinal = useCallback(
     (sttTranscript: string) => {
-      setTranscript(previous => [...previous, { role: 'user', text: sttTranscript }]);
+      setTranscript(previous => [...previous, {role: 'user', text: sttTranscript}]);
       log('Heard', sttTranscript);
       sendToChat(sttTranscript);
     },
@@ -323,7 +328,17 @@ const App = () => {
             </button>
           </details>
 
-          <DebugConsole logs={logs} />
+          <details
+            className="debug-wrapper"
+            open={showDebug}
+            onToggle={event => setShowDebug((event.target as HTMLDetailsElement).open)}
+          >
+            <summary>Debug console</summary>
+            {
+              showDebug &&
+              <DebugConsole logs={logs} />
+            }
+          </details>
         </div>
       </div>
     </div>

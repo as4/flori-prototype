@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import {useState, useRef, useCallback, useEffect} from 'react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type SpeechRecognitionResult = {
   isFinal: boolean;
-  0: { transcript: string };
+  0: {transcript: string};
 };
 
 type SpeechRecognitionEvent = {
@@ -58,7 +58,7 @@ const isSafari = () => {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useSpeechRecognition = ({ lang = 'en-US', onFinal, onError }: UseSpeechRecognitionOptions = {}) => {
+const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecognitionOptions = {}) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interim, setInterim] = useState('');
@@ -89,7 +89,7 @@ const useSpeechRecognition = ({ lang = 'en-US', onFinal, onError }: UseSpeechRec
       return false;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
       for (const track of stream.getTracks()) {
         track.stop();
       }
@@ -196,7 +196,7 @@ const useSpeechRecognition = ({ lang = 'en-US', onFinal, onError }: UseSpeechRec
     []
   );
 
-  return { isListening, transcript, interim, supported, start, stop };
+  return {isListening, transcript, interim, supported, start, stop};
 };
 
 export default useSpeechRecognition;

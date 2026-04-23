@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import type { DebugEntry } from '../components/DebugConsole';
+import {useState, useRef, useCallback} from 'react';
+import type {DebugEntry} from '../components/DebugConsole';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ interface UseInworldTTSOptions {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
+const useInworldTTS = ({apiKey, voiceId, onDebug}: UseInworldTTSOptions) => {
   const [status, setStatus] = useState('disconnected');
   const [currentViseme, setCurrentViseme] = useState('sil');
 
@@ -53,7 +53,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
 
   const log = useCallback(
     (message: string, data?: DebugEntry['data']) => {
-      onDebug?.({ time: Date.now(), message, data });
+      onDebug?.({time: Date.now(), message, data});
     },
     [onDebug]
   );
@@ -251,7 +251,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
         };
 
         ws.send(JSON.stringify(createMsg));
-        log('Context created', { voiceId: voiceId || 'Hana' });
+        log('Context created', {voiceId: voiceId || 'Hana'});
       };
 
       ws.onmessage = event => {
@@ -261,7 +261,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
           if (!result) return;
 
           if (result.audioChunk) {
-            const { audioContent, timestampInfo } = result.audioChunk;
+            const {audioContent, timestampInfo} = result.audioChunk;
 
             if (audioContent) {
               audioChunksRef.current.push(audioContent);
@@ -316,7 +316,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
       };
 
       ws.onclose = event => {
-        log('WebSocket closed', { code: event.code, reason: event.reason });
+        log('WebSocket closed', {code: event.code, reason: event.reason});
         setStatus('disconnected');
         wsRef.current = null;
       };
@@ -358,7 +358,7 @@ const useInworldTTS = ({ apiKey, voiceId, onDebug }: UseInworldTTSOptions) => {
       const ws = wsRef.current;
       if (ws) {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ close_context: {}, contextId: CONTEXT_ID }));
+          ws.send(JSON.stringify({close_context: {}, contextId: CONTEXT_ID}));
           ws.close();
         }
         wsRef.current = null;

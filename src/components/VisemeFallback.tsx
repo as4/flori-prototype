@@ -1,29 +1,29 @@
-import { useState } from 'react';
-import { VISEME_TO_ID } from '../hooks/useInworldTTS';
+import {VISEME_TO_ID} from '../hooks/useInworldTTS';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const VISEME_MOUTHS: Record<string, { label: string; mouth: string }> = {
-  sil: { label: 'Silent', mouth: '—' },
-  aei: { label: 'AEI', mouth: '😮' },
-  o: { label: 'O', mouth: '😯' },
-  ee: { label: 'EE', mouth: '😁' },
-  bmp: { label: 'BMP', mouth: '😐' },
-  fv: { label: 'FV', mouth: '🫦' },
-  l: { label: 'L', mouth: '😛' },
-  r: { label: 'R', mouth: '😬' },
-  th: { label: 'TH', mouth: '😝' },
-  qw: { label: 'QW', mouth: '😗' },
-  cdgknstxyz: { label: 'CDGK...', mouth: '😶' },
+const VISEME_MOUTHS: Record<string, {label: string; mouth: string}> = {
+  sil: {label: 'Silent', mouth: '—'},
+  aei: {label: 'AEI', mouth: '😮'},
+  o: {label: 'O', mouth: '😯'},
+  ee: {label: 'EE', mouth: '😁'},
+  bmp: {label: 'BMP', mouth: '😐'},
+  fv: {label: 'FV', mouth: '🫦'},
+  l: {label: 'L', mouth: '😛'},
+  r: {label: 'R', mouth: '😬'},
+  th: {label: 'TH', mouth: '😝'},
+  qw: {label: 'QW', mouth: '😗'},
+  cdgknstxyz: {label: 'CDGK...', mouth: '😶'},
 };
 
 interface VisemeFallbackProps {
+  mode: 'emoji' | 'svg';
   currentViseme: string;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const SvgMouth = ({ viseme }: { viseme: string }) => {
+const SvgMouth = ({viseme}: {viseme: string}) => {
   const shapes: Record<string, React.ReactNode> = {
     sil: (
       <path d="M30 50 Q50 52 70 50" stroke="#e8e8f0" strokeWidth="3" fill="none" strokeLinecap="round" />
@@ -75,31 +75,14 @@ const SvgMouth = ({ viseme }: { viseme: string }) => {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const VisemeFallback = ({ currentViseme }: VisemeFallbackProps) => {
-  const [mode, setMode] = useState<'emoji' | 'svg'>('emoji');
-
+const VisemeFallback = ({mode, currentViseme}: VisemeFallbackProps) => {
   const visemeId = VISEME_TO_ID[currentViseme] ?? 0;
-  const { label, mouth } = VISEME_MOUTHS[currentViseme] ?? VISEME_MOUTHS.sil;
+  const {label, mouth} = VISEME_MOUTHS[currentViseme] ?? VISEME_MOUTHS.sil;
 
   ////////////////////////////////////////////////////////////////////////////////
 
   return (
     <div className="viseme-fallback">
-      <div className="viseme-mode-toggle">
-        <button
-          className={mode === 'emoji' ? 'active' : ''}
-          onClick={() => setMode('emoji')}
-        >
-          Emoji
-        </button>
-        <button
-          className={mode === 'svg' ? 'active' : ''}
-          onClick={() => setMode('svg')}
-        >
-          SVG
-        </button>
-      </div>
-
       <div className="viseme-mouth">
         {
           mode === 'emoji' ?

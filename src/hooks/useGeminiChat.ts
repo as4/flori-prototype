@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import {useState, useRef, useCallback} from 'react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,7 +12,7 @@ const SENTENCE_TERMINATORS = /([.!?])(\s|$)/;
 
 interface GeminiTurn {
   role: 'user' | 'model';
-  parts: { text: string }[];
+  parts: {text: string}[];
 }
 
 interface UseGeminiChatOptions {
@@ -79,10 +79,10 @@ const useGeminiChat = ({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      historyRef.current.push({ role: 'user', parts: [{ text: trimmed }] });
+      historyRef.current.push({role: 'user', parts: [{text: trimmed}]});
 
       const body = {
-        systemInstruction: { parts: [{ text: systemPrompt }] },
+        systemInstruction: {parts: [{text: systemPrompt}]},
         contents: historyRef.current,
         generationConfig: {
           maxOutputTokens: 150,
@@ -112,7 +112,7 @@ const useGeminiChat = ({
           ENDPOINT(apiKey),
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json'},
             body: JSON.stringify(body),
             signal: controller.signal,
           }
@@ -131,10 +131,10 @@ const useGeminiChat = ({
         let lineBuffer = '';
 
         while (true) {
-          const { value, done } = await reader.read();
+          const {value, done} = await reader.read();
           if (done) break;
 
-          lineBuffer += decoder.decode(value, { stream: true });
+          lineBuffer += decoder.decode(value, {stream: true});
           const lines = lineBuffer.split('\n');
           lineBuffer = lines.pop() ?? '';
 
@@ -170,7 +170,7 @@ const useGeminiChat = ({
         }
 
         if (fullText.trim()) {
-          historyRef.current.push({ role: 'model', parts: [{ text: fullText }] });
+          historyRef.current.push({role: 'model', parts: [{text: fullText}]});
           onDoneRef.current?.(fullText);
         } else {
           historyRef.current.pop();
@@ -188,7 +188,7 @@ const useGeminiChat = ({
     [apiKey, systemPrompt]
   );
 
-  return { send, cancel, reset, isStreaming };
+  return {send, cancel, reset, isStreaming};
 };
 
 export default useGeminiChat;

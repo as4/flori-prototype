@@ -197,9 +197,14 @@ const App = () => {
             <label htmlFor="apiKey">InWorld API Key (for TTS)</label>
             <input
               id="apiKey"
-              type="password"
+              className="secret"
+              type="text"
               value={apiKey}
               placeholder="Base64 InWorld key..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onChange={event => setApiKey(event.target.value)}
             />
           </div>
@@ -208,9 +213,14 @@ const App = () => {
             <label htmlFor="googleKey">Google AI Key (for LLM)</label>
             <input
               id="googleKey"
-              type="password"
+              className="secret"
+              type="text"
               value={googleKey}
               placeholder="Google AI Studio key (free tier)..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onChange={event => setGoogleKey(event.target.value)}
             />
           </div>

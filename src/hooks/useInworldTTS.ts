@@ -59,14 +59,33 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
     [onDebug]
   );
 
+  const audioPrimedRef = useRef(false);
+
   // Call inside a user gesture (button press) to unlock audio on Safari.
+  // Desktop Safari is happy with resume(); iOS Safari also requires us to
+  // actually play something during the gesture, so we queue a 1-sample silent
+  // buffer the first time. Subsequent calls only resume — replaying the silent
+  // buffer on every press collides with iOS SFSpeechRecognizer and surfaces as
+  // "Source is stopped".
   const ensureAudioReady = useCallback(
     () => {
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContext();
       }
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
+      const audioContext = audioContextRef.current;
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
+      }
+      if (audioPrimedRef.current) return;
+      try {
+        const silent = audioContext.createBuffer(1, 1, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = silent;
+        source.connect(audioContext.destination);
+        source.start(0);
+        audioPrimedRef.current = true;
+      } catch (error) {
+        log('Silent-buffer prime failed', (error as Error).message);
       }
     },
     [log]
@@ -215,13 +234,10 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
       visemeTimelineRef.current = [];
 
       // Create/resume AudioContext inside this user gesture so Safari allows
-      // playback later when audio arrives after async STT/LLM work.
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext();
-      }
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
-      }
+      // playback later when audio arrives after async STT/LLM work. iOS also
+      // needs a silent buffer played during the gesture — handled in
+      // ensureAudioReady().
+      ensureAudioReady();
 
       const ws = new WebSocket(`${WS_URL}?authorization=Basic ${encodeURIComponent(apiKey)}`);
       wsRef.current = ws;

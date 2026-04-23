@@ -42,11 +42,14 @@ const PushToTalkButton = ({
       if (disabled) return;
 
       const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.code !== 'Space' || event.repeat) return;
+        if (event.code !== 'Space') return;
         const target = event.target as HTMLElement | null;
         const tag = target?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        // Always preventDefault (even on auto-repeat) so the page doesn't
+        // scroll while the user holds the key.
         event.preventDefault();
+        if (event.repeat) return;
         onPressStart();
       };
       const handleKeyUp = (event: KeyboardEvent) => {
@@ -76,12 +79,15 @@ const PushToTalkButton = ({
         className={`ptt-button ptt-${state}`}
         type="button"
         disabled={disabled}
+        onContextMenu={event => event.preventDefault()}
         onPointerDown={event => {
           event.preventDefault();
+          // Lock subsequent pointer events to this button so iOS doesn't fire
+          // pointercancel when the OS callout would otherwise hijack the touch.
+          event.currentTarget.setPointerCapture(event.pointerId);
           onPressStart();
         }}
         onPointerUp={onPressEnd}
-        onPointerLeave={onPressEnd}
         onPointerCancel={onPressEnd}
       >
         <span className="ptt-icon" aria-hidden="true">🎤</span>

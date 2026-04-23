@@ -6,6 +6,7 @@ import useSpeechRecognition from './hooks/useSpeechRecognition';
 import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
 import DebugConsole, {type DebugEntry} from './components/DebugConsole';
+import {DEFAULT_TTS_MODEL, TTS_MODELS} from './config';
 import './App.css';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +36,8 @@ const App = () => {
   const [apiKey, setApiKey] = useLocalStorage('flori-api-key');
   const [googleKey, setGoogleKey] = useLocalStorage('flori-google-ai-key');
   const [voiceId, setVoiceId] = useLocalStorage('flori-voice-id', 'Hana');
+  const [modelId, setModelId] = useLocalStorage('flori-tts-model', DEFAULT_TTS_MODEL);
+  const [geminiModel, setGeminiModel] = useLocalStorage('flori-gemini-model', 'gemini-2.5-flash-lite');
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
 
   // State
@@ -70,6 +73,7 @@ const App = () => {
   const {status, currentViseme, connect, sendText, disconnect, ensureAudioReady} = useInworldTTS({
     apiKey,
     voiceId,
+    modelId,
     onDebug: handleDebug,
   });
 
@@ -99,6 +103,7 @@ const App = () => {
 
   const {send: sendToChat, isStreaming, reset: resetChat} = useGeminiChat({
     apiKey: googleKey,
+    model: geminiModel,
     systemPrompt,
     onDone: handleChatDone,
     onError: handleChatError,
@@ -211,6 +216,17 @@ const App = () => {
           </div>
 
           <div className="form-group">
+            <label htmlFor="geminiModel">Gemini model</label>
+            <input
+              id="geminiModel"
+              type="text"
+              value={geminiModel}
+              placeholder="e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro..."
+              onChange={event => setGeminiModel(event.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
             <label htmlFor="voiceId">Voice ID</label>
             <input
               id="voiceId"
@@ -219,6 +235,30 @@ const App = () => {
               placeholder="e.g. Hana, Dennis, Ashley..."
               onChange={event => setVoiceId(event.target.value)}
             />
+          </div>
+
+          <div className="form-group">
+            <div className="form-label-row">
+              <label>TTS model</label>
+              {
+                isConnected &&
+                <span className="hint">reconnect to apply</span>
+              }
+            </div>
+            <div className="mode-switcher">
+              {TTS_MODELS.map(
+                model => (
+                  <button
+                    key={model.id}
+                    className={modelId === model.id ? 'active' : ''}
+                    type="button"
+                    onClick={() => setModelId(model.id)}
+                  >
+                    {model.label}
+                  </button>
+                )
+              )}
+            </div>
           </div>
 
           <div className="form-group">

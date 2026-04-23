@@ -2,9 +2,8 @@ import {useState, useRef, useCallback} from 'react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const MODEL = 'gemini-2.5-flash-lite';
-const ENDPOINT = (key: string) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
+const endpointFor = (model: string, key: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(key)}`;
 
 const SENTENCE_TERMINATORS = /([.!?])(\s|$)/;
 
@@ -17,6 +16,7 @@ interface GeminiTurn {
 
 interface UseGeminiChatOptions {
   apiKey: string;
+  model: string;
   systemPrompt: string;
   onToken?: (text: string) => void;
   onSentence?: (sentence: string) => void;
@@ -28,6 +28,7 @@ interface UseGeminiChatOptions {
 
 const useGeminiChat = ({
   apiKey,
+  model,
   systemPrompt,
   onToken,
   onSentence,
@@ -109,7 +110,7 @@ const useGeminiChat = ({
 
       try {
         const response = await fetch(
-          ENDPOINT(apiKey),
+          endpointFor(model, apiKey),
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json'},
@@ -185,7 +186,7 @@ const useGeminiChat = ({
         abortRef.current = null;
       }
     },
-    [apiKey, systemPrompt]
+    [apiKey, model, systemPrompt]
   );
 
   return {send, cancel, reset, isStreaming};

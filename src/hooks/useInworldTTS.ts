@@ -33,12 +33,13 @@ interface VisemeEntry {
 interface UseInworldTTSOptions {
   apiKey: string;
   voiceId: string;
+  modelId: string;
   onDebug?: (entry: DebugEntry) => void;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useInworldTTS = ({apiKey, voiceId, onDebug}: UseInworldTTSOptions) => {
+const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions) => {
   const [status, setStatus] = useState('disconnected');
   const [currentViseme, setCurrentViseme] = useState('sil');
 
@@ -232,7 +233,7 @@ const useInworldTTS = ({apiKey, voiceId, onDebug}: UseInworldTTSOptions) => {
         const createMsg = {
           create: {
             voiceId: voiceId || 'Hana',
-            modelId: 'inworld-tts-1.5-mini',
+            modelId,
             audioConfig: {
               audioEncoding: 'MP3',
               sampleRateHertz: 48000,
@@ -321,7 +322,7 @@ const useInworldTTS = ({apiKey, voiceId, onDebug}: UseInworldTTSOptions) => {
         wsRef.current = null;
       };
     },
-    [apiKey, voiceId, log, stopPlayback]
+    [apiKey, voiceId, modelId, log, stopPlayback]
   );
 
   const sendText = useCallback(

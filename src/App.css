@@ -512,6 +512,13 @@
   padding: 4px 0;
 }
 
+.debug-wrapper summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .text-fallback[open] summary,
 .debug-wrapper[open] summary {
   margin-bottom: 12px;

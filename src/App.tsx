@@ -110,6 +110,32 @@ const App = () => {
     setShowDebug(open);
   };
 
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  const handleCopyLogs = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const text = logsRef.current
+      .map(
+        entry => {
+          const time = new Date(entry.time).toISOString().slice(11, 23);
+          const data = entry.data ?
+            ' ' + (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data))
+            :
+            '';
+          return `${time} ${entry.message}${data}`;
+        }
+      )
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text || '(no logs yet)');
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+    setTimeout(() => setCopyState('idle'), 1500);
+  };
+
   const log = useCallback(
     (message: string, data?: DebugEntry['data']) => {
       handleDebug({time: Date.now(), message, data});
@@ -440,7 +466,16 @@ const App = () => {
             open={showDebug}
             onToggle={handleDebugToggle}
           >
-            <summary>Debug console</summary>
+            <summary>
+              Debug console
+              <button
+                className="link-btn"
+                type="button"
+                onClick={handleCopyLogs}
+              >
+                {copyState === 'copied' ? 'Copied!' : copyState === 'failed' ? 'Copy failed' : 'Copy logs'}
+              </button>
+            </summary>
             {
               showDebug &&
               <DebugConsole logs={logs} />

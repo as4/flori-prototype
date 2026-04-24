@@ -1,6 +1,8 @@
 # Flori Prototype
 
-A talking-battery character that holds a casual voice conversation about everyday health (sleep, hydration, movement, screen breaks). Push the mic button, speak, and Flori replies with synced lip-sync animation.
+Flori is a warm voice companion shaped like a battery, designed to live inside a women's health app. She listens and reflects rather than diagnoses — fluent in cycles, hormones, PCOS, endometriosis, fertility, perimenopause, and how everyday wellbeing (sleep, mood, stress) connects to all of it. This repo is the prototype that validates the full voice + lip-sync pipeline; the app she'll ship inside is built separately.
+
+Push the mic button, speak, and Flori replies with synced lip-sync animation.
 
 ## Pipeline
 

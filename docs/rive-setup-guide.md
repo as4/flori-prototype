@@ -50,7 +50,7 @@ You need **11 mouth poses** for your character. Each one represents a group of s
 
 ## Step 4 (optional): Emotion animations
 
-We want Flori to emote while talking — look happy, sad, surprised, etc. The lip-sync from Steps 1–3 is unchanged; emotions are added on **top** of it.
+We want Flori to emote while talking — look present, empathetic, happy, curious, surprised. The lip-sync from Steps 1–3 is unchanged; emotions are added on **top** of it.
 
 ### How it's set up
 
@@ -59,15 +59,15 @@ We want Flori to emote while talking — look happy, sad, surprised, etc. The li
    - Name (exactly): `emotionId`
 2. Each emotion gets its own ID. Use this mapping so it matches what the app sends:
 
-| ID | Name | How Flori should look |
-|----|------|------------------------|
-| 0 | Neutral | Default resting expression |
-| 1 | Happy | Smiling eyes, cheerful body language |
-| 2 | Sad | Droopy eyes, slumped posture |
-| 3 | Surprised | Wide eyes, raised brows |
-| 4 | Thinking | One side tilted, eyes looking up |
+| ID | Name | Intent | How Flori should look |
+|----|------|--------|-----------------------|
+| 0 | Listening | Fully present, attentive — this is her **default resting state**. Most of the time Flori is just listening. | Soft, relaxed posture. Slight forward lean if possible. Gentle eyes, mouth neutral or barely smiling. Only eyes moving; a subtle breathing idle is welcome. |
+| 1 | Empathetic / Supportive | "I'm with you." Used when the user shares something painful — this is a **super important** state because users will often open up about how bad they feel. | Soft, warm eyes. Gentle expression — **not sad**. Slow, comforting movement. An "open arms" pose with a different face expression could work here. |
+| 2 | Happy | Positive reinforcement. Warm and calm — not excited. | Gentle smile. Light, subtle movement. Feels grounded, not hyper. |
+| 3 | Curious / Thinking | Reflective — Flori is about to ask a follow-up, processing what was said. | A thinking pose (the one you already have, if you like). Slightly engaged and playful — "hmm, tell me more" / "okay, and what do you think about that?" |
+| 4 | Light Surprise | A small, human-like "oh!" reaction — a friend who is genuinely invested. | Slightly widened eyes. Small, quick reaction. Keep it subtle — **no dramatic shock**. |
 
-You can suggest more — just let us know the names and we'll match them up.
+(Emotion list is still being refined — this is a working set, not final.)
 
 3. Put the emotion animations on **a separate layer** from the mouth. This is important — if the emotion layer animates the mouth too, it will fight the lip-sync and the mouth will twitch. Think of it like:
    - **Layer 1 (mouth)** — driven by `visemeId`. Changes rapidly (many times per second during speech).
@@ -76,10 +76,19 @@ You can suggest more — just let us know the names and we'll match them up.
 ### Tips for emotions
 
 - **Blend the transition smoothly** — emotion changes should take ~300-500ms, not snap. A Blend State between emotion poses looks natural.
-- **Neutral (ID 0) is the safe default** — the app will set this when Flori isn't actively emoting, and also when the page first loads before any reply comes in.
-- **Don't animate the mouth in emotion layers** — any mouth shape here will override the lip-sync. If a happy expression needs a smile, handle it via eyes, cheeks, body, or a very subtle non-lip-sync mouth element.
+- **Listening (ID 0) is the safe default** — the app will set this when Flori isn't actively reacting, when the page first loads, and between replies. It should feel calm and complete on its own; everything else is a brief departure from this baseline.
+- **Empathetic is the most used emotional state** — users will frequently share painful things (cycle pain, fertility struggles, bad news). This one needs to land. Soft and quiet beats fully-formed sadness.
+- **Don't animate the mouth in emotion layers** — any mouth shape here will override the lip-sync. If happy needs a smile, handle it via eyes, cheeks, body, or a very subtle non-lip-sync mouth element.
 - The character should still lip-sync correctly while any emotion is active. If lip-sync breaks when emotions change, the mouth is probably being touched in two layers at once — move mouth keyframes off the emotion layer.
+
+### Step 5 (optional): One-shot gestures
+
+Some animations aren't emotional states — they fire once and return to the current emotion. **Wave** is the first of these, used in onboarding and re-engagement moments.
+
+For each one-shot gesture, add a **Trigger** input to the same state machine. For Wave, name it exactly `waveGesture`. When the app fires the trigger, Flori should play the wave animation and then automatically return to whichever emotion is currently set on `emotionId`.
+
+More one-shots may be added later — let us know when you're about to build something new and we'll agree on the trigger name together.
 
 ### Delivery
 
-Overwrite the same `.riv` file you gave us before. Same path, same filename. The app will pick it up automatically on the next reload — no code change needed as long as the input is named exactly `emotionId`.
+Overwrite the same `.riv` file you gave us before. Same path, same filename. The app will pick it up automatically on the next reload — no code change needed as long as the inputs are named exactly `emotionId` (Number) and `waveGesture` (Trigger).

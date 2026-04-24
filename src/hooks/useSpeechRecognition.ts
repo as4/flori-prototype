@@ -129,7 +129,10 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
       const recognition = new Ctor();
       recognition.lang = lang;
-      recognition.continuous = false;
+      // Push-to-talk: keep listening until the user releases the button. With
+      // continuous=false, Chrome auto-ends after a short pause and fires
+      // onFinal before the user is done talking.
+      recognition.continuous = true;
       recognition.interimResults = true;
 
       finalRef.current = '';

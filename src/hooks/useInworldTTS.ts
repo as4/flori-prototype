@@ -398,6 +398,7 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
     currentViseme,
     connect,
     sendText,
+    stopPlayback,
     disconnect,
     ensureAudioReady,
   };

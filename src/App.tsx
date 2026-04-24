@@ -67,8 +67,17 @@ const App = () => {
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [showDebug, setShowDebug] = useState(false);
 
+  // All log entries land here always — even when the debug console is closed —
+  // so opening it later shows history. setLogs is only called while open, so
+  // closed-state has zero React cost.
+  const LOG_BUFFER_MAX = 500;
+  const logsRef = useRef<DebugEntry[]>([]);
   const showDebugRef = useRef(showDebug);
   showDebugRef.current = showDebug;
+
+  // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
+  // TTS if the user has already started barging in over the previous reply.
+  const isListeningRef = useRef(false);
 
   //--------------------------------------------------------------------------
   //
@@ -78,11 +87,28 @@ const App = () => {
 
   const handleDebug = useCallback(
     (entry: DebugEntry) => {
+      logsRef.current.push(entry);
+      if (logsRef.current.length > LOG_BUFFER_MAX) {
+        logsRef.current = logsRef.current.slice(-LOG_BUFFER_MAX);
+      }
       if (!showDebugRef.current) return;
-      setLogs(previous => [...previous, entry]);
+      setLogs(previous => {
+        const next = [...previous, entry];
+        return next.length > LOG_BUFFER_MAX ? next.slice(-LOG_BUFFER_MAX) : next;
+      });
     },
     []
   );
+
+  // Fold the state sync into the toggle handler so opening the console
+  // shows the full ring buffer immediately, without a flash of stale logs.
+  const handleDebugToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    const {open} = event.currentTarget;
+    if (open) {
+      setLogs([...logsRef.current]);
+    }
+    setShowDebug(open);
+  };
 
   const log = useCallback(
     (message: string, data?: DebugEntry['data']) => {
@@ -91,7 +117,7 @@ const App = () => {
     [handleDebug]
   );
 
-  const {status, currentViseme, connect, sendText, disconnect, ensureAudioReady} = useInworldTTS({
+  const {status, currentViseme, connect, sendText, stopPlayback, disconnect, ensureAudioReady} = useInworldTTS({
     apiKey,
     voiceId,
     modelId,
@@ -106,6 +132,10 @@ const App = () => {
       if (!reply) return;
       setTranscript(previous => [...previous, {role: 'assistant', text: reply}]);
       log('LLM reply', reply);
+      if (isListeningRef.current) {
+        log('User is speaking — skipping TTS for this reply');
+        return;
+      }
       if (isConnected) {
         sendText(reply);
       } else {
@@ -134,9 +164,10 @@ const App = () => {
     (sttTranscript: string) => {
       setTranscript(previous => [...previous, {role: 'user', text: sttTranscript}]);
       log('Heard', sttTranscript);
+      log('Sending to Gemini', {model: geminiModel});
       sendToChat(sttTranscript);
     },
-    [sendToChat, log]
+    [sendToChat, log, geminiModel]
   );
 
   const handleSttError = useCallback(
@@ -148,6 +179,7 @@ const App = () => {
 
   const {
     isListening,
+    transcript: liveTranscript,
     interim,
     supported: speechSupported,
     start: startListening,
@@ -156,6 +188,9 @@ const App = () => {
     onFinal: handleSttFinal,
     onError: handleSttError,
   });
+
+  isListeningRef.current = isListening;
+  const liveSpeech = isListening ? `${liveTranscript} ${interim}`.trim() : '';
 
   const pttState = useMemo(
     () => {
@@ -193,6 +228,7 @@ const App = () => {
   };
 
   const handlePttStart = () => {
+    stopPlayback();
     ensureAudioReady();
     startListening();
   };
@@ -338,7 +374,7 @@ const App = () => {
 
           <PushToTalkButton
             state={pttState}
-            interim={interim}
+            interim={liveSpeech}
             onPressStart={handlePttStart}
             onPressEnd={stopListening}
           />
@@ -402,7 +438,7 @@ const App = () => {
           <details
             className="debug-wrapper"
             open={showDebug}
-            onToggle={event => setShowDebug((event.target as HTMLDetailsElement).open)}
+            onToggle={handleDebugToggle}
           >
             <summary>Debug console</summary>
             {

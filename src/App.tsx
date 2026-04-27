@@ -1,4 +1,4 @@
-import {useState, useCallback, useMemo, useRef} from 'react';
+import {useState, useCallback, useEffect, useMemo, useRef} from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useGeminiChat from './hooks/useGeminiChat';
@@ -59,6 +59,8 @@ const App = () => {
   const [voiceId, setVoiceId] = useLocalStorage('flori-voice-id', 'Hana');
   const [modelId, setModelId] = useLocalStorage('flori-tts-model', DEFAULT_TTS_MODEL);
   const [geminiModel, setGeminiModel] = useLocalStorage('flori-gemini-model', 'gemini-2.5-flash-lite');
+  const [streamModeStr, setStreamModeStr] = useLocalStorage('flori-stream-mode', 'true');
+  const streamMode = streamModeStr === 'true';
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
 
   // State
@@ -78,6 +80,24 @@ const App = () => {
   // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
   // TTS if the user has already started barging in over the previous reply.
   const isListeningRef = useRef(false);
+
+  // Time-to-first-audio measurement: stamp the moment we hand the turn off
+  // (STT final / text send) and record the delta when status flips to
+  // 'speaking'. Indicator in the header makes the stream vs one-shot
+  // tradeoff visible turn-by-turn.
+  const turnStartTimeRef = useRef<number | null>(null);
+  const [ttfaMs, setTtfaMs] = useState<number | null>(null);
+
+  const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
+  // Sticky-bottom auto-scroll: only follow new messages if the user is
+  // already near the bottom. Scrolling up to read older turns pins the
+  // view there until they scroll back down.
+  const stickyBottomRef = useRef(true);
+
+  const handleTranscriptScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const {scrollTop, scrollHeight, clientHeight} = event.currentTarget;
+    stickyBottomRef.current = scrollHeight - scrollTop - clientHeight < 40;
+  };
 
   //--------------------------------------------------------------------------
   //
@@ -143,7 +163,17 @@ const App = () => {
     [handleDebug]
   );
 
-  const {status, currentViseme, connect, sendText, stopPlayback, disconnect, ensureAudioReady} = useInworldTTS({
+  const {
+    status,
+    currentViseme,
+    connect,
+    beginTurn,
+    streamSentence,
+    sendText,
+    stopPlayback,
+    disconnect,
+    ensureAudioReady,
+  } = useInworldTTS({
     apiKey,
     voiceId,
     modelId,
@@ -152,23 +182,36 @@ const App = () => {
 
   const isConnected = status === 'connected' || status === 'processing' || status === 'speaking';
 
+  const handleSentence = useCallback(
+    (sentence: string) => {
+      if (!streamMode) return;
+      if (isListeningRef.current) return;
+      if (!isConnected) {
+        log('Not connected — skipping sentence');
+        return;
+      }
+      log('Sentence → TTS', sentence);
+      streamSentence(sentence);
+    },
+    [streamMode, isConnected, streamSentence, log]
+  );
+
   const handleChatDone = useCallback(
     (fullText: string) => {
       const reply = fullText.trim();
       if (!reply) return;
       setTranscript(previous => [...previous, {role: 'assistant', text: reply}]);
       log('LLM reply', reply);
-      if (isListeningRef.current) {
-        log('User is speaking — skipping TTS for this reply');
+      if (streamMode) return;
+      if (isListeningRef.current) return;
+      if (!isConnected) {
+        log('Not connected — skipping reply');
         return;
       }
-      if (isConnected) {
-        sendText(reply);
-      } else {
-        log('Not connected — skipping TTS');
-      }
+      log('Full reply → TTS', reply);
+      sendText(reply);
     },
-    [isConnected, sendText, log]
+    [streamMode, isConnected, sendText, log]
   );
 
   const handleChatError = useCallback(
@@ -178,10 +221,11 @@ const App = () => {
     [log]
   );
 
-  const {send: sendToChat, isStreaming, reset: resetChat} = useGeminiChat({
+  const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelGemini} = useGeminiChat({
     apiKey: googleKey,
     model: geminiModel,
     systemPrompt,
+    onSentence: handleSentence,
     onDone: handleChatDone,
     onError: handleChatError,
   });
@@ -191,9 +235,12 @@ const App = () => {
       setTranscript(previous => [...previous, {role: 'user', text: sttTranscript}]);
       log('Heard', sttTranscript);
       log('Sending to Gemini', {model: geminiModel});
+      turnStartTimeRef.current = Date.now();
+      setTtfaMs(null);
+      beginTurn();
       sendToChat(sttTranscript);
     },
-    [sendToChat, log, geminiModel]
+    [sendToChat, log, geminiModel, beginTurn]
   );
 
   const handleSttError = useCallback(
@@ -217,6 +264,26 @@ const App = () => {
 
   isListeningRef.current = isListening;
   const liveSpeech = isListening ? `${liveTranscript} ${interim}`.trim() : '';
+
+  useEffect(
+    () => {
+      if (status === 'speaking' && turnStartTimeRef.current !== null) {
+        const delta = Date.now() - turnStartTimeRef.current;
+        setTtfaMs(delta);
+        turnStartTimeRef.current = null;
+        log('TTFA', `${delta}ms`);
+      }
+    },
+    [status, log]
+  );
+
+  useEffect(
+    () => {
+      const body = transcriptBodyRef.current;
+      if (body && stickyBottomRef.current) body.scrollTop = body.scrollHeight;
+    },
+    [transcript]
+  );
 
   const pttState = useMemo(
     () => {
@@ -254,6 +321,7 @@ const App = () => {
   };
 
   const handlePttStart = () => {
+    cancelGemini();
     stopPlayback();
     ensureAudioReady();
     startListening();
@@ -265,9 +333,17 @@ const App = () => {
     <div className="app">
       <header className="app-header">
         <h1>Flori</h1>
-        <span className={`status status-${status}`}>
-          {STATUS_LABELS[status] ?? status}
-        </span>
+        <div className="header-right">
+          {
+            ttfaMs !== null &&
+            <span className="ttfa-pill" title="Time from STT final to first audio">
+              TTFA {ttfaMs}ms
+            </span>
+          }
+          <span className={`status status-${status}`}>
+            {STATUS_LABELS[status] ?? status}
+          </span>
+        </div>
       </header>
 
       <div className="app-layout">
@@ -356,6 +432,29 @@ const App = () => {
 
           <div className="form-group">
             <div className="form-label-row">
+              <label>TTS delivery</label>
+              <span className="hint">{streamMode ? 'sentence-by-sentence' : 'wait for full reply'}</span>
+            </div>
+            <div className="mode-switcher">
+              <button
+                className={streamMode ? 'active' : ''}
+                type="button"
+                onClick={() => setStreamModeStr('true')}
+              >
+                Stream
+              </button>
+              <button
+                className={!streamMode ? 'active' : ''}
+                type="button"
+                onClick={() => setStreamModeStr('false')}
+              >
+                One-shot
+              </button>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <div className="form-label-row">
               <label htmlFor="persona">Persona / system prompt</label>
               {
                 systemPrompt !== DEFAULT_SYSTEM_PROMPT &&
@@ -425,7 +524,11 @@ const App = () => {
                   Reset
                 </button>
               </div>
-              <div className="transcript-body">
+              <div
+                ref={transcriptBodyRef}
+                className="transcript-body"
+                onScroll={handleTranscriptScroll}
+              >
                 {transcript.map(
                   (turn, index) => (
                     <div key={index} className={`transcript-turn transcript-${turn.role}`}>

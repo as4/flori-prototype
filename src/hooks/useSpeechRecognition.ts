@@ -171,11 +171,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       recognition.onend = () => {
         setIsListening(false);
         setInterim('');
-        // Safari often ends without emitting isFinal results when stop() is
-        // called mid-utterance (push-to-talk). Fall back to the latest interim.
-        const finalText = (finalRef.current || interimRef.current).trim();
-        if (finalText) {
-          onFinalRef.current?.(finalText);
+        // Combine final + interim because the user releases the PTT button
+        // mid-utterance — the tail (most recent words) is often still in
+        // interim when stop() fires. Sending only finalRef would clip it.
+        const combined = `${finalRef.current} ${interimRef.current}`.replace(/\s+/g, ' ').trim();
+        if (combined) {
+          onFinalRef.current?.(combined);
         }
         recognitionRef.current = null;
       };

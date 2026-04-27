@@ -13,6 +13,21 @@
   letter-spacing: -0.5px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ttfa-pill {
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px dashed var(--border);
+}
+
 /* Status badge */
 .status {
   font-size: 13px;

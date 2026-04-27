@@ -117,7 +117,7 @@ Most of the subtle bugs on this project came from iOS Safari. Documented here so
 ## Known limitations
 
 - API keys live in the browser. A Cloudflare Worker proxy is the planned path to hide them in production.
-- ~1–1.5 s time-to-first-audio on the voice path. Sentence-streaming from Gemini to TTS (start speaking at the first `.?!` instead of end-of-turn) is the biggest deferred optimisation — ~500 ms win if needed.
+- Sentence streaming (Gemini → TTS) splits on `[.!?]\s` in `useGeminiChat.ts`. Honorifics and abbreviations like "Dr. Smith" or "Mr. Brown" produce a false split and an audible pause between names. See *Future work — LLM-emitted sentence markers* below for the planned fix.
 - InWorld TTS doesn't always expand abbreviations (e.g. "TTS" → "ts" instead of "tee tee ess"). Not fixable client-side.
 - iOS pre-17.2: WebAudio can be silent-switch-muted.
 
@@ -125,4 +125,4 @@ Most of the subtle bugs on this project came from iOS Safari. Documented here so
 
 - **Emotion animations** — artist adds an `emotionId` input on the state machine. Driven by structured-output JSON from Gemini (`{emotion: '...', reply: '...'}`). See `docs/rive-setup-guide.md` for the artist side; implementation plan lives in project memory.
 - **Key-hiding Worker proxy** — Cloudflare Worker that holds both API keys server-side and forwards requests; frontend just talks to the Worker.
-- **Sentence-streaming LLM→TTS** — if latency becomes a real complaint.
+- **LLM-emitted sentence markers** — replaces the regex-based sentence splitter in `useGeminiChat.ts`. Add a directive to the system prompt: "End every sentence with the character `‖` (U+2016). Never use this character anywhere else, and never include it inside numbers, names, abbreviations, or quotations." Then split on `‖` instead of `[.!?]\s`, and strip the marker before passing text to `onSentence`/`onDone`/the transcript. Pros: solves the "Dr. Smith" false-split problem, handles ellipses and decimals correctly, and lets the LLM choose semantic clause breaks (e.g. dramatic comma pauses). Cons: small extra tokens per sentence, and weaker models occasionally drop the marker — keep the regex split as a fallback for stretches with no marker.

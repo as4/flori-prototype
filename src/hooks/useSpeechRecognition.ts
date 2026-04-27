@@ -150,7 +150,11 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
           const result = event.results[i];
           const text = result[0].transcript;
           if (result.isFinal) {
-            finalRef.current += text;
+            // Safari (and Chrome) continuous mode emits each post-pause
+            // utterance as a fresh final without a leading space, producing
+            // "andWell" / "WilbursEven" runs. Force a separator and
+            // collapse extras.
+            finalRef.current = `${finalRef.current} ${text}`.replace(/\s+/g, ' ').trimStart();
           } else {
             interimText += text;
           }

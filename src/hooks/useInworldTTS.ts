@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback} from 'react';
+import {useCallback} from 'react';
 import useAudioPlayback from './useAudioPlayback';
 import useInworldSocket from './useInworldSocket';
 import type {DebugEntry} from '../components/DebugConsole';
@@ -31,10 +31,6 @@ interface UseInworldTTSOptions {
 ////////////////////////////////////////////////////////////////////////////////
 
 const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions) => {
-  // The "sentence sent, audio not yet playing" gap. Cleared by the effect
-  // below as soon as audio actually starts (or on barge-in via beginTurn).
-  const [isProcessing, setIsProcessing] = useState(false);
-
   const {currentViseme, isPlaying, ensureAudioReady, appendSegment, cancel: cancelPlayback} = useAudioPlayback({
     onDebug,
   });
@@ -42,7 +38,7 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
   const {
     connectionStatus,
     connect,
-    streamSentence: socketStreamSentence,
+    streamSentence,
     disconnect: socketDisconnect,
     clearPending,
   } = useInworldSocket({
@@ -53,17 +49,13 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
     onDebug,
   });
 
-  useEffect(
-    () => {
-      if (isPlaying) setIsProcessing(false);
-    },
-    [isPlaying]
-  );
-
-  const status =
-    connectionStatus !== 'connected' ? connectionStatus :
+  // TTS-side state only. The "processing" gap (LLM streaming, audio not yet
+  // playing) is owned by App.tsx via useLLMChat's isStreaming flag — that's
+  // the only signal that survives all the way through stream mode without
+  // race conditions across sentence boundaries.
+  const status: 'disconnected' | 'connecting' | 'connected' | 'speaking' | 'error' =
+    connectionStatus !== 'connected' ? connectionStatus as 'disconnected' | 'connecting' | 'error' :
     isPlaying ? 'speaking' :
-    isProcessing ? 'processing' :
     'connected';
 
   //--------------------------------------------------------------------------
@@ -76,19 +68,10 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
   // previous turn. App.tsx calls this on STT final and on barge-in.
   const beginTurn = useCallback(
     () => {
-      setIsProcessing(false);
       cancelPlayback();
       clearPending();
     },
     [cancelPlayback, clearPending]
-  );
-
-  const streamSentence = useCallback(
-    (text: string) => {
-      setIsProcessing(true);
-      socketStreamSentence(text);
-    },
-    [socketStreamSentence]
   );
 
   // Text-input fallback path: a one-shot send is just begin → sentence.

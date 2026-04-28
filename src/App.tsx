@@ -7,12 +7,12 @@ import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
 import DebugConsole, {type DebugEntry} from './components/DebugConsole';
 import LLMConfig from './components/LLMConfig';
-import SecretInput from './components/SecretInput';
+import TTSConfig from './components/TTSConfig';
 import Transcript, {type TranscriptTurn} from './components/Transcript';
 import PersonaEditor from './components/PersonaEditor';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
-import {DEFAULT_TTS_MODEL, TTS_MODELS} from './config';
+import {DEFAULT_TTS_MODEL} from './config';
 import './App.css';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,7 +164,7 @@ const App = () => {
   );
 
   const {
-    status,
+    status: ttsStatus,
     currentViseme,
     connect,
     beginTurn,
@@ -180,7 +180,7 @@ const App = () => {
     onDebug: handleDebug,
   });
 
-  const isConnected = status === 'connected' || status === 'processing' || status === 'speaking';
+  const isConnected = ttsStatus === 'connected' || ttsStatus === 'speaking';
 
   const handleSentence = useCallback(
     (sentence: string) => {
@@ -240,6 +240,14 @@ const App = () => {
     onDone: handleChatDone,
     onError: handleChatError,
   });
+
+  // Layer LLM-streaming on top of TTS status: while the LLM is still emitting
+  // tokens (or sentences are queued in InWorld) but no audio is playing yet,
+  // the user should see "processing".
+  const status =
+    ttsStatus === 'speaking' ? 'speaking' :
+    ttsStatus === 'connected' && isStreaming ? 'processing' :
+    ttsStatus;
 
   const handleSttFinal = useCallback(
     (sttTranscript: string) => {
@@ -355,76 +363,23 @@ const App = () => {
         </div>
 
         <div className="panel panel-controls">
-          <SecretInput
-            label="InWorld API Key (for TTS)"
-            placeholder="Base64 InWorld key..."
-            value={apiKey}
-            onChange={setApiKey}
-          />
-
           <LLMConfig
             providers={llmProviders}
             activeProviderId={llmProviderId as LLMProviderId}
             onProviderChange={setLlmProviderId}
           />
 
-          <div className="form-group">
-            <label htmlFor="voiceId">Voice ID</label>
-            <input
-              id="voiceId"
-              type="text"
-              value={voiceId}
-              placeholder="e.g. Hana, Dennis, Ashley..."
-              onChange={event => setVoiceId(event.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <div className="form-label-row">
-              <label>TTS model</label>
-              {
-                isConnected &&
-                <span className="hint">reconnect to apply</span>
-              }
-            </div>
-            <div className="mode-switcher">
-              {TTS_MODELS.map(
-                model => (
-                  <button
-                    key={model.id}
-                    className={modelId === model.id ? 'active' : ''}
-                    type="button"
-                    onClick={() => setModelId(model.id)}
-                  >
-                    {model.label}
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <div className="form-label-row">
-              <label>TTS delivery</label>
-              <span className="hint">{streamMode ? 'sentence-by-sentence' : 'wait for full reply'}</span>
-            </div>
-            <div className="mode-switcher">
-              <button
-                className={streamMode ? 'active' : ''}
-                type="button"
-                onClick={() => setStreamModeStr('true')}
-              >
-                Stream
-              </button>
-              <button
-                className={!streamMode ? 'active' : ''}
-                type="button"
-                onClick={() => setStreamModeStr('false')}
-              >
-                One-shot
-              </button>
-            </div>
-          </div>
+          <TTSConfig
+            apiKey={apiKey}
+            voiceId={voiceId}
+            modelId={modelId}
+            isConnected={isConnected}
+            streamMode={streamMode}
+            onApiKeyChange={setApiKey}
+            onVoiceIdChange={setVoiceId}
+            onModelIdChange={setModelId}
+            onStreamModeChange={value => setStreamModeStr(value ? 'true' : 'false')}
+          />
 
           <PersonaEditor
             value={systemPrompt}

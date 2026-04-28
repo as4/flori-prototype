@@ -117,7 +117,12 @@ Most of the subtle bugs on this project came from iOS Safari. Documented here so
 ## Known limitations
 
 - API keys live in the browser. A Cloudflare Worker proxy is the planned path to hide them in production.
-- Sentence streaming (Gemini → TTS) splits on `[.!?]\s` in `useGeminiChat.ts`. Honorifics and abbreviations like "Dr. Smith" or "Mr. Brown" produce a false split and an audible pause between names. See *Future work — LLM-emitted sentence markers* below for the planned fix.
+- Sentence streaming (LLM → TTS) splits on `[.!?]\s` in `useLLMChat.ts`. Honorifics and abbreviations like "Dr. Smith" or "Mr. Brown" produce a false split and an audible pause between names. See *Future work — LLM-emitted sentence markers* below for the planned fix.
+- **Full conversation history is sent on every LLM call.** `useLLMChat`'s `historyRef` accumulates every user/assistant turn for the session and the entire array is included in each request. Linear growth in tokens, TTFT, and per-call cost. At ~150 tokens per turn (STT result + 2–3-sentence reply), this is fine for short demos but starts being felt past ~30 turns on smaller models (Ministral 8B, gpt-4o-mini). Switching providers mid-conversation also keeps the same history (correct, but worth noting because a model swap makes the cost jump on the new provider's first call). Three options if it becomes a problem — picked roughly in order of ambition:
+  1. **Sliding window** — cap at the last N turns. Trivial, loses long-term context. Bad for Flori specifically because the persona is built on remembering what the user shared (cycle issues, conditions).
+  2. **Token budget** — same idea, counted in tokens. Marginally smarter, same downside.
+  3. **Periodic summarisation** — when history exceeds N turns, do an LLM call that condenses older turns into a single synthetic message (system or assistant) and replaces them. Preserves the *facts* without the transcript. Costs one extra call every M turns. The right answer for Flori long-term.
+- **Prompt caching is not used.** Anthropic and recent OpenAI models support caching the long prefix (system prompt + early history) so subsequent turns are cheaper and lower-TTFT. OpenRouter passes this through for supported models. We don't enable it. Worth flipping on alongside option 3 above.
 - InWorld TTS doesn't always expand abbreviations (e.g. "TTS" → "ts" instead of "tee tee ess"). Not fixable client-side.
 - iOS pre-17.2: WebAudio can be silent-switch-muted.
 

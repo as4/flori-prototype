@@ -5,7 +5,7 @@ import type {ProviderRuntime} from '../providers';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const OPENROUTER_DEFAULT_MODEL = 'mistralai/ministral-3b-2512';
+const OPENROUTER_DEFAULT_MODEL = 'mistralai/ministral-8b-2512';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ const useOpenRouterProvider = (): ProviderRuntime => {
         type: 'text',
         key: 'model',
         label: 'OpenRouter model',
-        placeholder: 'e.g. mistralai/ministral-3b-2512',
+        placeholder: 'e.g. mistralai/ministral-8b-2512',
         value: model,
         onChange: setModel,
       },

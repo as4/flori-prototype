@@ -369,6 +369,8 @@ const App = () => {
             onProviderChange={setLlmProviderId}
           />
 
+          <hr className="section-divider" />
+
           <TTSConfig
             apiKey={apiKey}
             voiceId={voiceId}
@@ -380,6 +382,8 @@ const App = () => {
             onModelIdChange={setModelId}
             onStreamModeChange={value => setStreamModeStr(value ? 'true' : 'false')}
           />
+
+          <hr className="section-divider" />
 
           <PersonaEditor
             value={systemPrompt}

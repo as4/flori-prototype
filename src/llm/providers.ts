@@ -1,4 +1,5 @@
 import useGeminiProvider from './google/provider';
+import useOpenAIProvider from './openai/provider';
 import useOpenRouterProvider from './openrouter/provider';
 import type {LLMAdapter} from './adapter';
 
@@ -39,7 +40,7 @@ export type ProviderRuntime = {
   fields: ProviderField[];
 };
 
-export const LLM_PROVIDER_IDS = ['gemini', 'openrouter'] as const;
+export const LLM_PROVIDER_IDS = ['gemini', 'openai', 'openrouter'] as const;
 export type LLMProviderId = typeof LLM_PROVIDER_IDS[number];
 export const DEFAULT_LLM_PROVIDER: LLMProviderId = 'gemini';
 
@@ -47,5 +48,6 @@ export const DEFAULT_LLM_PROVIDER: LLMProviderId = 'gemini';
 
 export const useLLMProviders = (): Record<LLMProviderId, ProviderRuntime> => ({
   gemini: useGeminiProvider(),
+  openai: useOpenAIProvider(),
   openrouter: useOpenRouterProvider(),
 });

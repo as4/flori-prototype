@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import type {LLMAdapter, LLMStreamOptions} from './adapter';
+import type {LLMAdapter, LLMStreamOptions} from '../adapter';
 
 ////////////////////////////////////////////////////////////////////////////////
 

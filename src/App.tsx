@@ -1,12 +1,17 @@
-import {useState, useCallback, useEffect, useMemo, useRef} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useLLMChat from './hooks/useLLMChat';
-import {createGoogleAdapter} from './llm/google';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
 import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
 import DebugConsole, {type DebugEntry} from './components/DebugConsole';
+import LLMConfig from './components/LLMConfig';
+import SecretInput from './components/SecretInput';
+import Transcript, {type TranscriptTurn} from './components/Transcript';
+import PersonaEditor from './components/PersonaEditor';
+import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
+import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL, TTS_MODELS} from './config';
 import './App.css';
 
@@ -57,19 +62,13 @@ WHAT YOU ARE NOT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-interface TranscriptTurn {
-  role: 'user' | 'assistant';
-  text: string;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 const App = () => {
   const [apiKey, setApiKey] = useLocalStorage('flori-api-key');
-  const [googleKey, setGoogleKey] = useLocalStorage('flori-google-ai-key');
+  const [llmProviderId, setLlmProviderId] = useLocalStorage('flori-llm-provider', DEFAULT_LLM_PROVIDER);
+  const llmProviders = useLLMProviders();
+  const activeLLM = llmProviders[llmProviderId as LLMProviderId];
   const [voiceId, setVoiceId] = useLocalStorage('flori-voice-id', 'Hana');
   const [modelId, setModelId] = useLocalStorage('flori-tts-model', DEFAULT_TTS_MODEL);
-  const [geminiModel, setGeminiModel] = useLocalStorage('flori-gemini-model', 'gemini-2.5-flash-lite');
   const [streamModeStr, setStreamModeStr] = useLocalStorage('flori-stream-mode', 'true');
   const streamMode = streamModeStr === 'true';
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
@@ -99,17 +98,6 @@ const App = () => {
   const ttftLoggedRef = useRef(false);
   const [ttftMs, setTtftMs] = useState<number | null>(null);
   const [ttfaMs, setTtfaMs] = useState<number | null>(null);
-
-  const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
-  // Sticky-bottom auto-scroll: only follow new messages if the user is
-  // already near the bottom. Scrolling up to read older turns pins the
-  // view there until they scroll back down.
-  const stickyBottomRef = useRef(true);
-
-  const handleTranscriptScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const {scrollTop, scrollHeight, clientHeight} = event.currentTarget;
-    stickyBottomRef.current = scrollHeight - scrollTop - clientHeight < 40;
-  };
 
   //--------------------------------------------------------------------------
   //
@@ -228,7 +216,7 @@ const App = () => {
 
   const handleChatError = useCallback(
     (message: string) => {
-      log('Gemini error', message);
+      log('LLM error', message);
     },
     [log]
   );
@@ -244,13 +232,8 @@ const App = () => {
     [log]
   );
 
-  const llmAdapter = useMemo(
-    () => createGoogleAdapter(googleKey, geminiModel),
-    [googleKey, geminiModel]
-  );
-
   const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelLLM} = useLLMChat({
-    adapter: llmAdapter,
+    adapter: activeLLM.adapter,
     systemPrompt,
     onToken: handleToken,
     onSentence: handleSentence,
@@ -262,7 +245,7 @@ const App = () => {
     (sttTranscript: string) => {
       setTranscript(previous => [...previous, {role: 'user', text: sttTranscript}]);
       log('Heard', sttTranscript);
-      log('Sending to Gemini', {model: geminiModel});
+      log('Sending to LLM', {provider: activeLLM.id});
       turnStartTimeRef.current = Date.now();
       ttftLoggedRef.current = false;
       setTtftMs(null);
@@ -270,7 +253,7 @@ const App = () => {
       beginTurn();
       sendToChat(sttTranscript);
     },
-    [sendToChat, log, geminiModel, beginTurn]
+    [sendToChat, log, activeLLM.id, beginTurn]
   );
 
   const handleSttError = useCallback(
@@ -307,24 +290,12 @@ const App = () => {
     [status, log]
   );
 
-  useEffect(
-    () => {
-      const body = transcriptBodyRef.current;
-      if (body && stickyBottomRef.current) body.scrollTop = body.scrollHeight;
-    },
-    [transcript]
-  );
-
-  const pttState = useMemo(
-    () => {
-      if (!isConnected || !googleKey) return 'disabled' as const;
-      if (isListening) return 'listening' as const;
-      if (isStreaming) return 'thinking' as const;
-      if (status === 'speaking' || status === 'processing') return 'speaking' as const;
-      return 'idle' as const;
-    },
-    [isConnected, googleKey, isListening, isStreaming, status]
-  );
+  const pttState =
+    !isConnected || !activeLLM.apiKey ? 'disabled' as const :
+    isListening ? 'listening' as const :
+    isStreaming ? 'thinking' as const :
+    (status === 'speaking' || status === 'processing') ? 'speaking' as const :
+    'idle' as const;
 
   //--------------------------------------------------------------------------
   //
@@ -384,48 +355,18 @@ const App = () => {
         </div>
 
         <div className="panel panel-controls">
-          <div className="form-group">
-            <label htmlFor="apiKey">InWorld API Key (for TTS)</label>
-            <input
-              id="apiKey"
-              className="secret"
-              type="text"
-              value={apiKey}
-              placeholder="Base64 InWorld key..."
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              onChange={event => setApiKey(event.target.value)}
-            />
-          </div>
+          <SecretInput
+            label="InWorld API Key (for TTS)"
+            placeholder="Base64 InWorld key..."
+            value={apiKey}
+            onChange={setApiKey}
+          />
 
-          <div className="form-group">
-            <label htmlFor="googleKey">Google AI Key (for LLM)</label>
-            <input
-              id="googleKey"
-              className="secret"
-              type="text"
-              value={googleKey}
-              placeholder="Google AI Studio key (free tier)..."
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              onChange={event => setGoogleKey(event.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="geminiModel">Gemini model</label>
-            <input
-              id="geminiModel"
-              type="text"
-              value={geminiModel}
-              placeholder="e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro..."
-              onChange={event => setGeminiModel(event.target.value)}
-            />
-          </div>
+          <LLMConfig
+            providers={llmProviders}
+            activeProviderId={llmProviderId as LLMProviderId}
+            onProviderChange={setLlmProviderId}
+          />
 
           <div className="form-group">
             <label htmlFor="voiceId">Voice ID</label>
@@ -485,27 +426,11 @@ const App = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <div className="form-label-row">
-              <label htmlFor="persona">Persona / system prompt</label>
-              {
-                systemPrompt !== DEFAULT_SYSTEM_PROMPT &&
-                <button
-                  className="link-btn"
-                  type="button"
-                  onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
-                >
-                  Reset to default
-                </button>
-              }
-            </div>
-            <textarea
-              id="persona"
-              value={systemPrompt}
-              rows={4}
-              onChange={event => setSystemPrompt(event.target.value)}
-            />
-          </div>
+          <PersonaEditor
+            value={systemPrompt}
+            defaultValue={DEFAULT_SYSTEM_PROMPT}
+            onChange={setSystemPrompt}
+          />
 
           <div className="form-row">
             {
@@ -543,35 +468,7 @@ const App = () => {
             </div>
           }
 
-          {
-            transcript.length > 0 &&
-            <div className="transcript">
-              <div className="transcript-header">
-                <span>Conversation</span>
-                <button
-                  className="transcript-reset"
-                  type="button"
-                  onClick={handleResetChat}
-                >
-                  Reset
-                </button>
-              </div>
-              <div
-                ref={transcriptBodyRef}
-                className="transcript-body"
-                onScroll={handleTranscriptScroll}
-              >
-                {transcript.map(
-                  (turn, index) => (
-                    <div key={index} className={`transcript-turn transcript-${turn.role}`}>
-                      <span className="transcript-role">{turn.role === 'user' ? 'You' : 'Flori'}</span>
-                      <span className="transcript-text">{turn.text}</span>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          }
+          <Transcript turns={transcript} onReset={handleResetChat} />
 
           <details className="text-fallback">
             <summary>Text input (debugging)</summary>

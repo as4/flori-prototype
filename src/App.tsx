@@ -1,7 +1,8 @@
 import {useState, useCallback, useEffect, useMemo, useRef} from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
-import useGeminiChat from './hooks/useGeminiChat';
+import useLLMChat from './hooks/useLLMChat';
+import {createGoogleAdapter} from './llm/google';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
 import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
@@ -91,11 +92,12 @@ const App = () => {
   // TTS if the user has already started barging in over the previous reply.
   const isListeningRef = useRef(false);
 
-  // Time-to-first-audio measurement: stamp the moment we hand the turn off
-  // (STT final / text send) and record the delta when status flips to
-  // 'speaking'. Indicator in the header makes the stream vs one-shot
-  // tradeoff visible turn-by-turn.
+  // Latency measurements: stamp the moment we hand the turn off (STT final)
+  // and capture two deltas — TTFT (first LLM token) and TTFA (first audio).
+  // Splitting them makes it obvious when a slow turn is the LLM vs the TTS.
   const turnStartTimeRef = useRef<number | null>(null);
+  const ttftLoggedRef = useRef(false);
+  const [ttftMs, setTtftMs] = useState<number | null>(null);
   const [ttfaMs, setTtfaMs] = useState<number | null>(null);
 
   const transcriptBodyRef = useRef<HTMLDivElement | null>(null);
@@ -231,10 +233,26 @@ const App = () => {
     [log]
   );
 
-  const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelGemini} = useGeminiChat({
-    apiKey: googleKey,
-    model: geminiModel,
+  const handleToken = useCallback(
+    () => {
+      if (ttftLoggedRef.current || turnStartTimeRef.current === null) return;
+      const delta = Date.now() - turnStartTimeRef.current;
+      setTtftMs(delta);
+      ttftLoggedRef.current = true;
+      log('TTFT', `${delta}ms`);
+    },
+    [log]
+  );
+
+  const llmAdapter = useMemo(
+    () => createGoogleAdapter(googleKey, geminiModel),
+    [googleKey, geminiModel]
+  );
+
+  const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelLLM} = useLLMChat({
+    adapter: llmAdapter,
     systemPrompt,
+    onToken: handleToken,
     onSentence: handleSentence,
     onDone: handleChatDone,
     onError: handleChatError,
@@ -246,6 +264,8 @@ const App = () => {
       log('Heard', sttTranscript);
       log('Sending to Gemini', {model: geminiModel});
       turnStartTimeRef.current = Date.now();
+      ttftLoggedRef.current = false;
+      setTtftMs(null);
       setTtfaMs(null);
       beginTurn();
       sendToChat(sttTranscript);
@@ -331,7 +351,7 @@ const App = () => {
   };
 
   const handlePttStart = () => {
-    cancelGemini();
+    cancelLLM();
     stopPlayback();
     ensureAudioReady();
     startListening();
@@ -345,9 +365,11 @@ const App = () => {
         <h1>Flori</h1>
         <div className="header-right">
           {
-            ttfaMs !== null &&
-            <span className="ttfa-pill" title="Time from STT final to first audio">
-              TTFA {ttfaMs}ms
+            (ttftMs !== null || ttfaMs !== null) &&
+            <span className="ttfa-pill" title="Time-to-first-token (LLM) • time-to-first-audio (TTS)">
+              {ttftMs !== null ? `TTFT ${ttftMs}ms` : 'TTFT —'}
+              {' • '}
+              {ttfaMs !== null ? `TTFA ${ttfaMs}ms` : 'TTFA —'}
             </span>
           }
           <span className={`status status-${status}`}>

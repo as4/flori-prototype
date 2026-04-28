@@ -126,8 +126,9 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInw
                 }
               }
             }
-            if (wordAlignment?.words) {
-              log('Words received', wordAlignment.words.join(' '));
+            const joinedWords = wordAlignment?.words?.join(' ').trim();
+            if (joinedWords) {
+              log('Words received', joinedWords);
             }
           }
 

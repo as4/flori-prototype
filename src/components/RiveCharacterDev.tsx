@@ -6,6 +6,14 @@ import VisemeFallback from './VisemeFallback';
 
 type DisplayMode = 'rive' | 'emoji' | 'svg';
 
+const EMOTIONS = [
+  {id: 0, label: 'Listening'},
+  {id: 1, label: 'Empathetic'},
+  {id: 2, label: 'Happy'},
+  {id: 3, label: 'Curious'},
+  {id: 4, label: 'Surprise'},
+];
+
 type RiveCharacterDevProps = {
   currentViseme: string;
 };
@@ -17,6 +25,7 @@ const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
   const [mode, setMode] = useState<DisplayMode>('rive');
   const [riveBuffer, setRiveBuffer] = useState<ArrayBuffer | undefined>();
   const [inputName, setInputName] = useState('visemeId');
+  const [currentEmotion, setCurrentEmotion] = useState(0);
   const [readError, setReadError] = useState<string | null>(null);
 
   //--------------------------------------------------------------------------
@@ -90,6 +99,23 @@ const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
         />
       </div>
 
+      <div className="mode-switcher">
+        {
+          EMOTIONS.map(
+            emotion => (
+              <button
+                key={emotion.id}
+                className={currentEmotion === emotion.id ? 'active' : ''}
+                type="button"
+                onClick={() => setCurrentEmotion(emotion.id)}
+              >
+                {emotion.label} ({emotion.id})
+              </button>
+            )
+          )
+        }
+      </div>
+
       {
         readError &&
         <div className="rive-error">{readError}</div>
@@ -98,9 +124,10 @@ const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
       {
         mode === 'rive' ?
           <RiveCharacter
-            currentViseme={currentViseme}
             riveBuffer={riveBuffer}
+            currentViseme={currentViseme}
             inputName={inputName}
+            currentEmotion={currentEmotion}
           />
           :
           <div className="character-stage">

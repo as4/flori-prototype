@@ -12,7 +12,7 @@ type TextDebugInputProps = {
 
 const TextDebugInput = ({isConnected, isProcessing, onSend}: TextDebugInputProps) => {
   // State
-  const [text, setText] = useState('Hello! This is a test of the InWorld TTS viseme system.');
+  const [text, setText] = useState("Hi, I'm Flori — your warm companion for women's health, here to listen, reflect, and help you tune in to whatever your body or mind is telling you today.");
 
   //--------------------------------------------------------------------------
   //

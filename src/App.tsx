@@ -3,13 +3,14 @@ import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useLLMChat from './hooks/useLLMChat';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
-import RiveCharacter from './components/RiveCharacter';
+import RiveCharacterDev from './components/RiveCharacterDev';
 import PushToTalkButton from './components/PushToTalkButton';
 import DebugPanel from './components/DebugPanel';
 import LLMConfig from './components/LLMConfig';
 import TTSConfig from './components/TTSConfig';
 import Transcript, {type TranscriptTurn} from './components/Transcript';
 import PersonaEditor from './components/PersonaEditor';
+import TextDebugInput from './components/TextDebugInput';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL} from './config';
@@ -75,7 +76,6 @@ const App = () => {
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
 
   // State
-  const [text, setText] = useState('Hello! This is a test of the InWorld TTS viseme system.');
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
 
   // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
@@ -243,18 +243,6 @@ const App = () => {
   //
   //--------------------------------------------------------------------------
 
-  const handleSend = () => {
-    if (!text.trim()) return;
-    sendText(text.trim());
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && !event.shiftKey && isConnected) {
-      event.preventDefault();
-      handleSend();
-    }
-  };
-
   const handleResetChat = () => {
     resetChat();
     setTranscript([]);
@@ -291,7 +279,7 @@ const App = () => {
 
       <div className="app-layout">
         <div className="panel panel-character">
-          <RiveCharacter currentViseme={currentViseme} />
+          <RiveCharacterDev currentViseme={currentViseme}/>
         </div>
 
         <div className="panel panel-controls">
@@ -361,28 +349,11 @@ const App = () => {
 
           <Transcript turns={transcript} onReset={handleResetChat} />
 
-          <details className="text-fallback">
-            <summary>Text input (debugging)</summary>
-            <div className="form-group">
-              <textarea
-                id="text"
-                value={text}
-                placeholder="Type something..."
-                rows={3}
-                disabled={!isConnected}
-                onChange={event => setText(event.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            </div>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!isConnected || !text.trim() || status === 'processing'}
-              onClick={handleSend}
-            >
-              {status === 'processing' ? 'Processing...' : 'Send'}
-            </button>
-          </details>
+          <TextDebugInput
+            isConnected={isConnected}
+            isProcessing={status === 'processing'}
+            onSend={sendText}
+          />
 
           <DebugPanel/>
         </div>

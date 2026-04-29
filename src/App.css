@@ -516,6 +516,17 @@
 .transcript-body::-webkit-scrollbar-track { background: transparent; }
 .transcript-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+.text-debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.text-debug-actions .btn {
+  width: auto;
+  flex: 1;
+}
+
 /* Collapsible sections (text fallback + debug console) */
 .text-fallback,
 .debug-wrapper {

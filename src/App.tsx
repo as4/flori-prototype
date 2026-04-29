@@ -352,6 +352,7 @@ const App = () => {
           <TextDebugInput
             isConnected={isConnected}
             isProcessing={status === 'processing'}
+            isSpeaking={status === 'speaking'}
             onSend={sendText}
           />
 

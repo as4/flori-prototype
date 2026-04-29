@@ -1,16 +1,11 @@
 import {useRef, useEffect} from 'react';
+import type {DebugEntry} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-export interface DebugEntry {
-  time: number;
-  message: string;
-  data?: string | Record<string, unknown>;
-}
-
-interface DebugConsoleProps {
+type DebugConsoleProps = {
   logs: DebugEntry[];
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

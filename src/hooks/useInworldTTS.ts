@@ -1,7 +1,6 @@
 import {useCallback} from 'react';
 import useAudioPlayback from './useAudioPlayback';
 import useInworldSocket from './useInworldSocket';
-import type {DebugEntry} from '../components/DebugConsole';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,19 +20,16 @@ export const VISEME_TO_ID: Record<string, number> = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-interface UseInworldTTSOptions {
+type UseInworldTTSOptions = {
   apiKey: string;
   voiceId: string;
   modelId: string;
-  onDebug?: (entry: DebugEntry) => void;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions) => {
-  const {currentViseme, isPlaying, ensureAudioReady, appendSegment, cancel: cancelPlayback} = useAudioPlayback({
-    onDebug,
-  });
+const useInworldTTS = ({apiKey, voiceId, modelId}: UseInworldTTSOptions) => {
+  const {currentViseme, isPlaying, ensureAudioReady, appendSegment, cancel: cancelPlayback} = useAudioPlayback();
 
   const {
     connectionStatus,
@@ -46,7 +42,6 @@ const useInworldTTS = ({apiKey, voiceId, modelId, onDebug}: UseInworldTTSOptions
     voiceId,
     modelId,
     onSegment: appendSegment,
-    onDebug,
   });
 
   // TTS-side state only. The "processing" gap (LLM streaming, audio not yet

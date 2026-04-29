@@ -1,5 +1,5 @@
 import {useState, useRef, useCallback} from 'react';
-import type {DebugEntry} from '../components/DebugConsole';
+import {log} from '../utils/log';
 import type {VisemeEntry} from './useAudioPlayback';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,17 +9,16 @@ const CONTEXT_ID = 'flori-ctx';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-interface UseInworldSocketOptions {
+type UseInworldSocketOptions = {
   apiKey: string;
   voiceId: string;
   modelId: string;
   onSegment: (chunks: string[], visemes: VisemeEntry[]) => void;
-  onDebug?: (entry: DebugEntry) => void;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInworldSocketOptions) => {
+const useInworldSocket = ({apiKey, voiceId, modelId, onSegment}: UseInworldSocketOptions) => {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -35,13 +34,6 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInw
   //  Helpers
   //
   //--------------------------------------------------------------------------
-
-  const log = useCallback(
-    (message: string, data?: DebugEntry['data']) => {
-      onDebug?.({time: Date.now(), message, data});
-    },
-    [onDebug]
-  );
 
   const clearPending = useCallback(
     () => {
@@ -164,7 +156,7 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInw
         wsRef.current = null;
       };
     },
-    [apiKey, voiceId, modelId, log, clearPending]
+    [apiKey, voiceId, modelId, clearPending]
   );
 
   const streamSentence = useCallback(
@@ -183,7 +175,7 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInw
       }));
       log('Sentence sent', trimmed);
     },
-    [log]
+    []
   );
 
   const disconnect = useCallback(
@@ -200,7 +192,7 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment, onDebug}: UseInw
       setConnectionStatus('disconnected');
       log('Disconnected');
     },
-    [clearPending, log]
+    [clearPending]
   );
 
   ////////////////////////////////////////////////////////////////////////////////

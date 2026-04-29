@@ -1,5 +1,5 @@
 import {useState, useRef, useCallback} from 'react';
-import type {DebugEntry} from '../components/DebugConsole';
+import {log} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7,21 +7,17 @@ const VISEME_HOLD_DURATION = 0.15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-export interface VisemeEntry {
+export type VisemeEntry = {
   viseme: string;
   phone: string;
   start: number;
   duration: number;
   end?: number;
-}
-
-interface UseAudioPlaybackOptions {
-  onDebug?: (entry: DebugEntry) => void;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useAudioPlayback = ({onDebug}: UseAudioPlaybackOptions = {}) => {
+const useAudioPlayback = () => {
   const [currentViseme, setCurrentViseme] = useState('sil');
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -44,13 +40,6 @@ const useAudioPlayback = ({onDebug}: UseAudioPlaybackOptions = {}) => {
   //  Helpers
   //
   //--------------------------------------------------------------------------
-
-  const log = useCallback(
-    (message: string, data?: DebugEntry['data']) => {
-      onDebug?.({time: Date.now(), message, data});
-    },
-    [onDebug]
-  );
 
   const decodeChunks = useCallback(
     async (chunks: string[]) => {
@@ -124,7 +113,7 @@ const useAudioPlayback = ({onDebug}: UseAudioPlaybackOptions = {}) => {
 
       rafIdRef.current = requestAnimationFrame(tick);
     },
-    [log]
+    []
   );
 
   //--------------------------------------------------------------------------
@@ -170,7 +159,7 @@ const useAudioPlayback = ({onDebug}: UseAudioPlaybackOptions = {}) => {
         log('Silent-buffer prime failed', (error as Error).message);
       }
     },
-    [log]
+    []
   );
 
   const cancel = useCallback(
@@ -274,7 +263,7 @@ const useAudioPlayback = ({onDebug}: UseAudioPlaybackOptions = {}) => {
         visemes: visemes.length,
       });
     },
-    [decodeChunks, log, tick]
+    [decodeChunks, tick]
   );
 
   ////////////////////////////////////////////////////////////////////////////////

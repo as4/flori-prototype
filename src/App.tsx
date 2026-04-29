@@ -5,7 +5,7 @@ import useLLMChat from './hooks/useLLMChat';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
 import RiveCharacter from './components/RiveCharacter';
 import PushToTalkButton from './components/PushToTalkButton';
-import DebugConsole, {type DebugEntry} from './components/DebugConsole';
+import DebugPanel from './components/DebugPanel';
 import LLMConfig from './components/LLMConfig';
 import TTSConfig from './components/TTSConfig';
 import Transcript, {type TranscriptTurn} from './components/Transcript';
@@ -13,6 +13,7 @@ import PersonaEditor from './components/PersonaEditor';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL} from './config';
+import {log} from './utils/log';
 import './App.css';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,17 +76,7 @@ const App = () => {
 
   // State
   const [text, setText] = useState('Hello! This is a test of the InWorld TTS viseme system.');
-  const [logs, setLogs] = useState<DebugEntry[]>([]);
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
-  const [showDebug, setShowDebug] = useState(false);
-
-  // All log entries land here always — even when the debug console is closed —
-  // so opening it later shows history. setLogs is only called while open, so
-  // closed-state has zero React cost.
-  const LOG_BUFFER_MAX = 500;
-  const logsRef = useRef<DebugEntry[]>([]);
-  const showDebugRef = useRef(showDebug);
-  showDebugRef.current = showDebug;
 
   // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
   // TTS if the user has already started barging in over the previous reply.
@@ -105,64 +96,6 @@ const App = () => {
   //
   //--------------------------------------------------------------------------
 
-  const handleDebug = useCallback(
-    (entry: DebugEntry) => {
-      logsRef.current.push(entry);
-      if (logsRef.current.length > LOG_BUFFER_MAX) {
-        logsRef.current = logsRef.current.slice(-LOG_BUFFER_MAX);
-      }
-      if (!showDebugRef.current) return;
-      setLogs(previous => {
-        const next = [...previous, entry];
-        return next.length > LOG_BUFFER_MAX ? next.slice(-LOG_BUFFER_MAX) : next;
-      });
-    },
-    []
-  );
-
-  // Fold the state sync into the toggle handler so opening the console
-  // shows the full ring buffer immediately, without a flash of stale logs.
-  const handleDebugToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const {open} = event.currentTarget;
-    if (open) {
-      setLogs([...logsRef.current]);
-    }
-    setShowDebug(open);
-  };
-
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-
-  const handleCopyLogs = async (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const text = logsRef.current
-      .map(
-        entry => {
-          const time = new Date(entry.time).toISOString().slice(11, 23);
-          const data = entry.data ?
-            ' ' + (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data))
-            :
-            '';
-          return `${time} ${entry.message}${data}`;
-        }
-      )
-      .join('\n');
-    try {
-      await navigator.clipboard.writeText(text || '(no logs yet)');
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-    setTimeout(() => setCopyState('idle'), 1500);
-  };
-
-  const log = useCallback(
-    (message: string, data?: DebugEntry['data']) => {
-      handleDebug({time: Date.now(), message, data});
-    },
-    [handleDebug]
-  );
-
   const {
     status: ttsStatus,
     currentViseme,
@@ -177,7 +110,6 @@ const App = () => {
     apiKey,
     voiceId,
     modelId,
-    onDebug: handleDebug,
   });
 
   const isConnected = ttsStatus === 'connected' || ttsStatus === 'speaking';
@@ -193,7 +125,7 @@ const App = () => {
       log('Sentence → TTS', sentence);
       streamSentence(sentence);
     },
-    [streamMode, isConnected, streamSentence, log]
+    [streamMode, isConnected, streamSentence]
   );
 
   const handleChatDone = useCallback(
@@ -211,14 +143,14 @@ const App = () => {
       log('Full reply → TTS', reply);
       sendText(reply);
     },
-    [streamMode, isConnected, sendText, log]
+    [streamMode, isConnected, sendText]
   );
 
   const handleChatError = useCallback(
     (message: string) => {
       log('LLM error', message);
     },
-    [log]
+    []
   );
 
   const handleToken = useCallback(
@@ -229,7 +161,7 @@ const App = () => {
       ttftLoggedRef.current = true;
       log('TTFT', `${delta}ms`);
     },
-    [log]
+    []
   );
 
   const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelLLM} = useLLMChat({
@@ -261,14 +193,14 @@ const App = () => {
       beginTurn();
       sendToChat(sttTranscript);
     },
-    [sendToChat, log, activeLLM.id, beginTurn]
+    [sendToChat, activeLLM.id, beginTurn]
   );
 
   const handleSttError = useCallback(
     (message: string) => {
       log('Speech recognition error', message);
     },
-    [log]
+    []
   );
 
   const {
@@ -295,7 +227,7 @@ const App = () => {
         log('TTFA', `${delta}ms`);
       }
     },
-    [status, log]
+    [status]
   );
 
   const pttState =
@@ -452,26 +384,7 @@ const App = () => {
             </button>
           </details>
 
-          <details
-            className="debug-wrapper"
-            open={showDebug}
-            onToggle={handleDebugToggle}
-          >
-            <summary>
-              Debug console
-              <button
-                className="link-btn"
-                type="button"
-                onClick={handleCopyLogs}
-              >
-                {copyState === 'copied' ? 'Copied!' : copyState === 'failed' ? 'Copy failed' : 'Copy logs'}
-              </button>
-            </summary>
-            {
-              showDebug &&
-              <DebugConsole logs={logs} />
-            }
-          </details>
+          <DebugPanel/>
         </div>
       </div>
     </div>

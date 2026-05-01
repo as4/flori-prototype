@@ -1,31 +1,33 @@
 import {useState, useCallback, type ChangeEvent} from 'react';
 import RiveCharacter from './RiveCharacter';
 import VisemeFallback from './VisemeFallback';
+import {EMOTIONS} from '../emotions';
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type DisplayMode = 'rive' | 'emoji' | 'svg';
 
-const EMOTIONS = [
-  {id: 0, label: 'Listening'},
-  {id: 1, label: 'Empathetic'},
-  {id: 2, label: 'Happy'},
-  {id: 3, label: 'Curious'},
-  {id: 4, label: 'Surprise'},
-];
-
 type RiveCharacterDevProps = {
   currentViseme: string;
+  currentEmotion: number;
+  useLLMEmotion: boolean;
+  onCurrentEmotionChange: (emotion: number) => void;
+  onUseLLMEmotionChange: (value: boolean) => void;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
+const RiveCharacterDev = ({
+  currentViseme,
+  currentEmotion,
+  useLLMEmotion,
+  onCurrentEmotionChange,
+  onUseLLMEmotionChange,
+}: RiveCharacterDevProps) => {
   // State
   const [mode, setMode] = useState<DisplayMode>('rive');
   const [riveBuffer, setRiveBuffer] = useState<ArrayBuffer | undefined>();
   const [inputName, setInputName] = useState('visemeId');
-  const [currentEmotion, setCurrentEmotion] = useState(0);
   const [readError, setReadError] = useState<string | null>(null);
 
   //--------------------------------------------------------------------------
@@ -107,7 +109,8 @@ const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
                 key={emotion.id}
                 className={currentEmotion === emotion.id ? 'active' : ''}
                 type="button"
-                onClick={() => setCurrentEmotion(emotion.id)}
+                disabled={useLLMEmotion}
+                onClick={() => onCurrentEmotionChange(emotion.id)}
               >
                 {emotion.label} ({emotion.id})
               </button>
@@ -115,6 +118,15 @@ const RiveCharacterDev = ({currentViseme}: RiveCharacterDevProps) => {
           )
         }
       </div>
+
+      <label className="emotion-toggle">
+        <input
+          type="checkbox"
+          checked={useLLMEmotion}
+          onChange={event => onUseLLMEmotionChange(event.target.checked)}
+        />
+        <span>LLM-driven emotion</span>
+      </label>
 
       {
         readError &&

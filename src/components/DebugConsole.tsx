@@ -47,7 +47,10 @@ const DebugConsole = ({logs}: DebugConsoleProps) => {
       <div className="debug-logs" ref={containerRef}>
         {logs.map(
           (entry, index) => (
-            <div key={index} className="debug-entry">
+            <div
+              key={index}
+              className={`debug-entry${entry.message === 'Heard' ? ' debug-entry-turn' : ''}`}
+            >
               <span className="debug-time">{formatTime(entry.time)}</span>
               <span className="debug-message">{entry.message}</span>
               {

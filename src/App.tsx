@@ -14,6 +14,7 @@ import TextDebugInput from './components/TextDebugInput';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL} from './config';
+import {EMOTION_TO_ID, type EmotionName} from './emotions';
 import {log} from './utils/log';
 import './App.css';
 
@@ -62,6 +63,12 @@ WHAT YOU ARE NOT
 — You are not a cheerleader — don't perform happiness, be genuinely warm.
 — You are not a search engine — don't list facts, hold a conversation.`;
 
+const EMOTION_PROMPT_ADDENDUM = `EMOTION TAGS
+— Begin each sentence with one of these tags so Flori's face matches the moment: [LISTENING], [EMPATHETIC], [HAPPY], [CURIOUS], [SURPRISE].
+— Use [EMPATHETIC] when the user shares something painful, [CURIOUS] when you're about to ask a follow-up, [HAPPY] for warm uplifting moments, [SURPRISE] for a small "oh!", and [LISTENING] as the calm default.
+— You can change emotion mid-reply when the tone shifts — e.g. a soft acknowledgement followed by a curious question.
+— Tags are stripped before the user hears the reply — never refer to them in the spoken text.`;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const App = () => {
@@ -74,9 +81,12 @@ const App = () => {
   const [streamModeStr, setStreamModeStr] = useLocalStorage('flori-stream-mode', 'true');
   const streamMode = streamModeStr === 'true';
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
+  const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'false');
+  const useLLMEmotion = useLLMEmotionStr === 'true';
 
   // State
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
+  const [currentEmotion, setCurrentEmotion] = useState(0);
 
   // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
   // TTS if the user has already started barging in over the previous reply.
@@ -89,6 +99,24 @@ const App = () => {
   const ttftLoggedRef = useRef(false);
   const [ttftMs, setTtftMs] = useState<number | null>(null);
   const [ttfaMs, setTtfaMs] = useState<number | null>(null);
+
+  // Per-sentence emotion queue. Pushed at handleSentence (when each sentence
+  // is queued to TTS); shifted at handleSegmentStart (when the matching audio
+  // actually starts playing). The LLM emits all sentence tags within a few
+  // hundred ms but audio plays for seconds — applying on tag-arrival lands
+  // every change instantly and desyncs face from voice.
+  const pendingEmotionsRef = useRef<(EmotionName | undefined)[]>([]);
+
+  const handleSegmentStart = useCallback(
+    () => {
+      const next = pendingEmotionsRef.current.shift();
+      if (next) {
+        setCurrentEmotion(EMOTION_TO_ID[next]);
+        log('Emotion', next);
+      }
+    },
+    []
+  );
 
   //--------------------------------------------------------------------------
   //
@@ -110,18 +138,20 @@ const App = () => {
     apiKey,
     voiceId,
     modelId,
+    onSegmentStart: handleSegmentStart,
   });
 
   const isConnected = ttsStatus === 'connected' || ttsStatus === 'speaking';
 
   const handleSentence = useCallback(
-    (sentence: string) => {
+    (sentence: string, emotion?: EmotionName) => {
       if (!streamMode) return;
       if (isListeningRef.current) return;
       if (!isConnected) {
         log('Not connected — skipping sentence');
         return;
       }
+      pendingEmotionsRef.current.push(emotion);
       log('Sentence → TTS', sentence);
       streamSentence(sentence);
     },
@@ -129,11 +159,12 @@ const App = () => {
   );
 
   const handleChatDone = useCallback(
-    (fullText: string) => {
+    (fullText: string, rawText: string) => {
       const reply = fullText.trim();
       if (!reply) return;
-      setTranscript(previous => [...previous, {role: 'assistant', text: reply}]);
-      log('LLM reply', reply);
+      const rawReply = rawText.trim() || reply;
+      setTranscript(previous => [...previous, {role: 'assistant', text: rawReply}]);
+      log('LLM reply', rawReply);
       if (streamMode) return;
       if (isListeningRef.current) return;
       if (!isConnected) {
@@ -164,9 +195,11 @@ const App = () => {
     []
   );
 
+  const effectiveSystemPrompt = useLLMEmotion ? `${systemPrompt}\n\n${EMOTION_PROMPT_ADDENDUM}` : systemPrompt;
+
   const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelLLM} = useLLMChat({
     adapter: activeLLM.adapter,
-    systemPrompt,
+    systemPrompt: effectiveSystemPrompt,
     onToken: handleToken,
     onSentence: handleSentence,
     onDone: handleChatDone,
@@ -190,6 +223,7 @@ const App = () => {
       ttftLoggedRef.current = false;
       setTtftMs(null);
       setTtfaMs(null);
+      pendingEmotionsRef.current = [];
       beginTurn();
       sendToChat(sttTranscript);
     },
@@ -230,6 +264,23 @@ const App = () => {
     [status]
   );
 
+  // Return Flori's face to the listening rest state once a reply finishes
+  // playing. Only when the LLM is driving emotion — otherwise the manual
+  // buttons own currentEmotion and we'd stomp the user's selection.
+  const wasSpeakingRef = useRef(false);
+
+  useEffect(
+    () => {
+      const isSpeaking = status === 'speaking';
+      if (wasSpeakingRef.current && !isSpeaking && useLLMEmotion) {
+        setCurrentEmotion(0);
+        log('Emotion reset → listening');
+      }
+      wasSpeakingRef.current = isSpeaking;
+    },
+    [status, useLLMEmotion]
+  );
+
   const pttState =
     !isConnected || !activeLLM.apiKey ? 'disabled' as const :
     isListening ? 'listening' as const :
@@ -252,9 +303,18 @@ const App = () => {
   const handlePttStart = () => {
     cancelLLM();
     stopPlayback();
+    pendingEmotionsRef.current = [];
     ensureAudioReady();
     startListening();
   };
+
+  const handleTextDebugSend = useCallback(
+    (text: string) => {
+      log('Typed', text);
+      sendText(text);
+    },
+    [sendText]
+  );
 
   ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,7 +339,13 @@ const App = () => {
 
       <div className="app-layout">
         <div className="panel panel-character">
-          <RiveCharacterDev currentViseme={currentViseme}/>
+          <RiveCharacterDev
+            currentViseme={currentViseme}
+            currentEmotion={currentEmotion}
+            useLLMEmotion={useLLMEmotion}
+            onCurrentEmotionChange={setCurrentEmotion}
+            onUseLLMEmotionChange={value => setUseLLMEmotionStr(String(value))}
+          />
         </div>
 
         <div className="panel panel-controls">
@@ -300,7 +366,7 @@ const App = () => {
             onApiKeyChange={setApiKey}
             onVoiceIdChange={setVoiceId}
             onModelIdChange={setModelId}
-            onStreamModeChange={value => setStreamModeStr(value ? 'true' : 'false')}
+            onStreamModeChange={value => setStreamModeStr(String(value))}
           />
 
           <hr className="section-divider" />
@@ -353,7 +419,7 @@ const App = () => {
             isConnected={isConnected}
             isProcessing={status === 'processing'}
             isSpeaking={status === 'speaking'}
-            onSend={sendText}
+            onSend={handleTextDebugSend}
           />
 
           <DebugPanel/>

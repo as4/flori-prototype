@@ -17,7 +17,11 @@ export type VisemeEntry = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useAudioPlayback = () => {
+type UseAudioPlaybackOptions = {
+  onSegmentStart?: () => void;
+};
+
+const useAudioPlayback = ({onSegmentStart}: UseAudioPlaybackOptions = {}) => {
   const [currentViseme, setCurrentViseme] = useState('sil');
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -34,6 +38,13 @@ const useAudioPlayback = () => {
   const nextStartTimeRef = useRef<number | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const tickStateRef = useRef({cursor: 0, lastViseme: 'sil', lastActiveEnd: 0});
+
+  // Per-segment "started playing" timers. Web Audio has no onstart callback,
+  // so we schedule a setTimeout to fire at the same offset source.start(startAt)
+  // is set to. Tracked so cancel() can clear in-flight timers.
+  const segmentStartTimersRef = useRef<number[]>([]);
+  const onSegmentStartRef = useRef(onSegmentStart);
+  onSegmentStartRef.current = onSegmentStart;
 
   //--------------------------------------------------------------------------
   //
@@ -171,6 +182,10 @@ const useAudioPlayback = () => {
       for (const source of scheduledSourcesRef.current) {
         try { source.stop(); } catch { /* already stopped */ }
       }
+      for (const timerId of segmentStartTimersRef.current) {
+        clearTimeout(timerId);
+      }
+      segmentStartTimersRef.current = [];
       scheduledSourcesRef.current = [];
       visemeTimelineRef.current = [];
       turnAudioStartRef.current = null;
@@ -234,6 +249,20 @@ const useAudioPlayback = () => {
       source.connect(masterGainRef.current ?? audioContext.destination);
       source.start(startAt);
       scheduledSourcesRef.current.push(source);
+
+      // Web Audio has no per-source onstart; mirror source.start(startAt) with
+      // a setTimeout that fires the same instant. Used by App.tsx to apply
+      // emotion changes in lockstep with each sentence's audio (LLM tags arrive
+      // far ahead of playback, so naive on-tag firing desyncs face from voice).
+      const delayMs = Math.max(0, (startAt - audioContext.currentTime) * 1000);
+      const timerId = window.setTimeout(
+        () => {
+          segmentStartTimersRef.current = segmentStartTimersRef.current.filter(id => id !== timerId);
+          onSegmentStartRef.current?.();
+        },
+        delayMs
+      );
+      segmentStartTimersRef.current.push(timerId);
 
       nextStartTimeRef.current = startAt + buffer.duration;
 

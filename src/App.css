@@ -347,6 +347,26 @@
   color: #0b0c0f;
 }
 
+.mode-switcher button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.emotion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-bright);
+  cursor: pointer;
+  user-select: none;
+}
+
+.emotion-toggle input {
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
 /* Push-to-talk button */
 .ptt-wrapper {
   display: flex;

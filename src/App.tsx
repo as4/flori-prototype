@@ -10,6 +10,7 @@ import LLMConfig from './components/LLMConfig';
 import TTSConfig from './components/TTSConfig';
 import Transcript, {type TranscriptTurn} from './components/Transcript';
 import PersonaEditor from './components/PersonaEditor';
+import EmotionPromptEditor from './components/EmotionPromptEditor';
 import TextDebugInput from './components/TextDebugInput';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
@@ -63,7 +64,7 @@ WHAT YOU ARE NOT
 — You are not a cheerleader — don't perform happiness, be genuinely warm.
 — You are not a search engine — don't list facts, hold a conversation.`;
 
-const EMOTION_PROMPT_ADDENDUM = `EMOTION TAGS
+const DEFAULT_EMOTION_PROMPT = `EMOTION TAGS
 — Begin each sentence with one of these tags so Flori's face matches the moment: [LISTENING], [EMPATHETIC], [HAPPY], [CURIOUS], [SURPRISE].
 — Use [EMPATHETIC] when the user shares something painful, [CURIOUS] when you're about to ask a follow-up, [HAPPY] for warm uplifting moments, [SURPRISE] for a small "oh!", and [LISTENING] as the calm default.
 — You can change emotion mid-reply when the tone shifts — e.g. a soft acknowledgement followed by a curious question.
@@ -81,6 +82,7 @@ const App = () => {
   const [streamModeStr, setStreamModeStr] = useLocalStorage('flori-stream-mode', 'true');
   const streamMode = streamModeStr === 'true';
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
+  const [emotionPrompt, setEmotionPrompt] = useLocalStorage('flori-emotion-prompt', DEFAULT_EMOTION_PROMPT);
   const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'true');
   const useLLMEmotion = useLLMEmotionStr === 'true';
 
@@ -195,7 +197,7 @@ const App = () => {
     []
   );
 
-  const effectiveSystemPrompt = useLLMEmotion ? `${systemPrompt}\n\n${EMOTION_PROMPT_ADDENDUM}` : systemPrompt;
+  const effectiveSystemPrompt = useLLMEmotion ? `${systemPrompt}\n\n${emotionPrompt}` : systemPrompt;
 
   const {send: sendToChat, isStreaming, reset: resetChat, cancel: cancelLLM} = useLLMChat({
     adapter: activeLLM.adapter,
@@ -375,6 +377,12 @@ const App = () => {
             value={systemPrompt}
             defaultValue={DEFAULT_SYSTEM_PROMPT}
             onChange={setSystemPrompt}
+          />
+
+          <EmotionPromptEditor
+            value={emotionPrompt}
+            defaultValue={DEFAULT_EMOTION_PROMPT}
+            onChange={setEmotionPrompt}
           />
 
           <div className="form-row">

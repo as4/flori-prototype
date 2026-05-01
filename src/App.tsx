@@ -81,7 +81,7 @@ const App = () => {
   const [streamModeStr, setStreamModeStr] = useLocalStorage('flori-stream-mode', 'true');
   const streamMode = streamModeStr === 'true';
   const [systemPrompt, setSystemPrompt] = useLocalStorage('flori-system-prompt', DEFAULT_SYSTEM_PROMPT);
-  const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'false');
+  const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'true');
   const useLLMEmotion = useLLMEmotionStr === 'true';
 
   // State

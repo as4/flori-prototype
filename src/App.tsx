@@ -94,6 +94,13 @@ const App = () => {
   // TTS if the user has already started barging in over the previous reply.
   const isListeningRef = useRef(false);
 
+  // Read inside handleSegmentStart (which has no deps) to gate emotion
+  // application without recreating the callback on every toggle. The LLM may
+  // still emit [TAG]s when the toggle is off — past replies in history prime
+  // the pattern even after we drop the addendum from the system prompt.
+  const useLLMEmotionRef = useRef(useLLMEmotion);
+  useLLMEmotionRef.current = useLLMEmotion;
+
   // Latency measurements: stamp the moment we hand the turn off (STT final)
   // and capture two deltas — TTFT (first LLM token) and TTFA (first audio).
   // Splitting them makes it obvious when a slow turn is the LLM vs the TTS.
@@ -112,7 +119,7 @@ const App = () => {
   const handleSegmentStart = useCallback(
     () => {
       const next = pendingEmotionsRef.current.shift();
-      if (next) {
+      if (next && useLLMEmotionRef.current) {
         setCurrentEmotion(EMOTION_TO_ID[next]);
         log('Emotion', next);
       }

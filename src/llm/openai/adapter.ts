@@ -27,6 +27,7 @@ const buildBody = ({systemPrompt, history, userText, model}: BuildBodyArgs) => (
   // late 2024, so we use the newer name across the board.
   max_completion_tokens: 150,
   temperature: 0.8,
+  reasoning_effort: 'minimal',
 });
 
 ////////////////////////////////////////////////////////////////////////////////

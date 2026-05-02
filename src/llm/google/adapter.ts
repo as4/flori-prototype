@@ -23,6 +23,10 @@ const buildBody = ({systemPrompt, history, userText}: Pick<LLMStreamOptions, 'sy
   generationConfig: {
     maxOutputTokens: 150,
     temperature: 0.8,
+    thinkingConfig: {
+      thinkingBudget: 0,
+      includeThoughts: false,
+    },
   },
 });
 

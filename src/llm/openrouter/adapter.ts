@@ -28,6 +28,10 @@ const buildBody = ({systemPrompt, history, userText, model, fastest}: BuildBodyA
     stream: true,
     max_tokens: 150,
     temperature: 0.8,
+    reasoning: {
+      enabled: false,
+      exclude: true,
+    },
   };
 
   // Routes the request to whichever underlying provider is fastest right now

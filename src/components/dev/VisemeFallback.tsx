@@ -1,4 +1,4 @@
-import {VISEME_TO_ID} from '../hooks/useInworldTTS';
+import {VISEME_TO_ID} from '../../hooks/useInworldTTS';
 
 ////////////////////////////////////////////////////////////////////////////////
 

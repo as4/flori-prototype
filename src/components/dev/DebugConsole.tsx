@@ -1,6 +1,6 @@
 import {useRef, useEffect} from 'react';
 import _ from 'lodash';
-import type {DebugEntry} from '../utils/log';
+import type {DebugEntry} from '../../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 

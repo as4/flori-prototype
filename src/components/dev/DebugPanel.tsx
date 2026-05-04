@@ -1,7 +1,7 @@
 import {useState, useSyncExternalStore} from 'react';
 import _ from 'lodash';
 import DebugConsole from './DebugConsole';
-import {getLogs, subscribeLogs} from '../utils/log';
+import {getLogs, subscribeLogs} from '../../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 

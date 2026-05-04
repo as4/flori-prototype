@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import ProviderField from './ProviderField';
-import {LLM_PROVIDER_IDS} from '../llm/providers';
-import type {LLMProviderId, ProviderRuntime} from '../llm/providers';
+import {LLM_PROVIDER_IDS} from '../../llm/providers';
+import type {LLMProviderId, ProviderRuntime} from '../../llm/providers';
 
 ////////////////////////////////////////////////////////////////////////////////
 

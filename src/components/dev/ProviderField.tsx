@@ -1,6 +1,6 @@
 import {useId} from 'react';
 import SecretInput from './SecretInput';
-import type {ProviderField as ProviderFieldDef} from '../llm/providers';
+import type {ProviderField as ProviderFieldDef} from '../../llm/providers';
 
 ////////////////////////////////////////////////////////////////////////////////
 

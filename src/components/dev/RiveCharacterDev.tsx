@@ -1,8 +1,8 @@
 import {useState, useCallback, type ChangeEvent} from 'react';
 import _ from 'lodash';
-import RiveCharacter from './RiveCharacter';
+import RiveCharacter from '../RiveCharacter';
 import VisemeFallback from './VisemeFallback';
-import {EMOTIONS} from '../emotions';
+import {EMOTIONS} from '../../emotions';
 
 ////////////////////////////////////////////////////////////////////////////////
 

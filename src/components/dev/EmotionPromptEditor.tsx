@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import {EMOTIONS} from '../emotions';
+import {EMOTIONS} from '../../emotions';
 
 ////////////////////////////////////////////////////////////////////////////////
 

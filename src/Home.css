@@ -1,0 +1,7 @@
+/* The .riv file currently has a dark artboard fill baked in — this only
+ * hides the CSS-side dark panel, not the artboard itself (artist needs
+ * to clear the artboard fill in the .riv source). */
+.home .rive-canvas {
+  background: transparent;
+  border-radius: 0;
+}

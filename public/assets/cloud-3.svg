@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 272.214 91.4258" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path id="Cloud" d="M216.242 45.376C206.539 18.8979 181.115 0 151.275 0C128.417 0 108.152 11.091 95.5572 28.1805C85.9693 14.9321 70.38 6.31099 52.7763 6.31067C23.6297 6.31119 0.000780332 29.9404 0 59.087C0 71.2721 4.12968 82.4928 11.0658 91.4258H272.214C272.214 65.5099 251.202 44.4981 225.286 44.4981C222.192 44.4982 219.168 44.8044 216.242 45.376Z" fill="url(#paint0_linear_62_92)"/>
+<defs>
+<linearGradient id="paint0_linear_62_92" x1="118" y1="-6.36641e-07" x2="118" y2="91" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="white" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

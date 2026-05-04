@@ -1,7 +1,7 @@
 import {useId} from 'react';
 import _ from 'lodash';
 import SecretInput from './SecretInput';
-import {TTS_MODELS} from '../config';
+import {TTS_MODELS} from '../../config';
 
 ////////////////////////////////////////////////////////////////////////////////
 

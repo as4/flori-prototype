@@ -29,8 +29,15 @@ const DebugPanelBody = () => {
 ////////////////////////////////////////////////////////////////////////////////
 
 const DebugPanel = () => {
+  // State
   const [open, setOpen] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  //--------------------------------------------------------------------------
+  //
+  //  Event handlers
+  //
+  //--------------------------------------------------------------------------
 
   const handleCopy = async (event: React.MouseEvent) => {
     event.preventDefault();

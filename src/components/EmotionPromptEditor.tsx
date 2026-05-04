@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import {EMOTIONS} from '../emotions';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +33,7 @@ const EmotionPromptEditor = ({value, defaultValue, onChange}: Props) => (
       onChange={event => onChange(event.target.value)}
     />
     <div className="hint">
-      Available tags: {EMOTIONS.map(emotion => `[${emotion.name.toUpperCase()}]`).join(' ')}
+      Available tags: {_.map(EMOTIONS, emotion => `[${emotion.name.toUpperCase()}]`).join(' ')}
     </div>
   </div>
 );

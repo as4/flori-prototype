@@ -1,4 +1,5 @@
 import {useState, useCallback, type ChangeEvent} from 'react';
+import _ from 'lodash';
 import RiveCharacter from './RiveCharacter';
 import VisemeFallback from './VisemeFallback';
 import {EMOTIONS} from '../emotions';
@@ -103,7 +104,8 @@ const RiveCharacterDev = ({
 
       <div className="mode-switcher">
         {
-          EMOTIONS.map(
+          _.map(
+            EMOTIONS,
             emotion => (
               <button
                 key={emotion.id}

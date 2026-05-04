@@ -1,4 +1,5 @@
 import {useRef, useEffect} from 'react';
+import _ from 'lodash';
 import type {DebugEntry} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,28 +46,31 @@ const DebugConsole = ({logs}: DebugConsoleProps) => {
     <div className="debug-console">
       <div className="debug-header">Debug Console</div>
       <div className="debug-logs" ref={containerRef}>
-        {logs.map(
-          (entry, index) => (
-            <div
-              key={index}
-              className={`debug-entry${entry.message === 'Heard' ? ' debug-entry-turn' : ''}`}
-            >
-              <span className="debug-time">{formatTime(entry.time)}</span>
-              <span className="debug-message">{entry.message}</span>
-              {
-                entry.data &&
-                <span className="debug-data">
-                  {
-                    typeof entry.data === 'string' ?
-                      entry.data
-                      :
-                      JSON.stringify(entry.data)
-                  }
-                </span>
-              }
-            </div>
+        {
+          _.map(
+            logs,
+            (entry, index) => (
+              <div
+                key={index}
+                className={`debug-entry${entry.message === 'Heard' ? ' debug-entry-turn' : ''}`}
+              >
+                <span className="debug-time">{formatTime(entry.time)}</span>
+                <span className="debug-message">{entry.message}</span>
+                {
+                  entry.data &&
+                  <span className="debug-data">
+                    {
+                      typeof entry.data === 'string' ?
+                        entry.data
+                        :
+                        JSON.stringify(entry.data)
+                    }
+                  </span>
+                }
+              </div>
+            )
           )
-        )}
+        }
         {
           logs.length === 0 &&
           <div className="debug-empty">Waiting for events...</div>

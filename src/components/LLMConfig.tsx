@@ -1,3 +1,4 @@
+import _ from 'lodash';
 import ProviderField from './ProviderField';
 import {LLM_PROVIDER_IDS} from '../llm/providers';
 import type {LLMProviderId, ProviderRuntime} from '../llm/providers';
@@ -18,26 +19,32 @@ const LLMConfig = ({providers, activeProviderId, onProviderChange}: Props) => {
       <div className="form-group">
         <label>LLM provider</label>
         <div className="mode-switcher">
-          {LLM_PROVIDER_IDS.map(
-            id => (
-              <button
-                key={id}
-                className={activeProviderId === id ? 'active' : ''}
-                type="button"
-                onClick={() => onProviderChange(id)}
-              >
-                {providers[id].label}
-              </button>
+          {
+            _.map(
+              LLM_PROVIDER_IDS,
+              id => (
+                <button
+                  key={id}
+                  className={activeProviderId === id ? 'active' : ''}
+                  type="button"
+                  onClick={() => onProviderChange(id)}
+                >
+                  {providers[id].label}
+                </button>
+              )
             )
-          )}
+          }
         </div>
       </div>
 
-      {active.fields.map(
-        field => (
-          <ProviderField key={field.key} field={field} />
+      {
+        _.map(
+          active.fields,
+          field => (
+            <ProviderField key={field.key} field={field}/>
+          )
         )
-      )}
+      }
     </>
   );
 };

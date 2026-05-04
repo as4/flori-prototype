@@ -1,4 +1,5 @@
 import {useId} from 'react';
+import _ from 'lodash';
 import SecretInput from './SecretInput';
 import {TTS_MODELS} from '../config';
 
@@ -58,18 +59,21 @@ const TTSConfig = ({
           }
         </div>
         <div className="mode-switcher">
-          {TTS_MODELS.map(
-            model => (
-              <button
-                key={model.id}
-                className={modelId === model.id ? 'active' : ''}
-                type="button"
-                onClick={() => onModelIdChange(model.id)}
-              >
-                {model.label}
-              </button>
+          {
+            _.map(
+              TTS_MODELS,
+              model => (
+                <button
+                  key={model.id}
+                  className={modelId === model.id ? 'active' : ''}
+                  type="button"
+                  onClick={() => onModelIdChange(model.id)}
+                >
+                  {model.label}
+                </button>
+              )
             )
-          )}
+          }
         </div>
       </div>
 

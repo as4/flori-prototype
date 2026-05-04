@@ -1,4 +1,5 @@
 import {useRef, useEffect, useState} from 'react';
+import _ from 'lodash';
 import {Rive} from '@rive-app/canvas';
 import {DEFAULT_RIV_URL} from '../config';
 import {VISEME_TO_ID} from '../hooks/useInworldTTS';
@@ -131,9 +132,9 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
         rive.play(machineName);
         const inputs = (rive.stateMachineInputs(machineName) || []) as StateMachineInput[];
 
-        const visemeInput = inputs.find(input => input.name === inputName);
+        const visemeInput = _.find(inputs, input => input.name === inputName);
         if (!visemeInput) {
-          const available = inputs.map(input => `${input.name} (${input.type})`).join(', ');
+          const available = _.map(inputs, input => `${input.name} (${input.type})`).join(', ');
           setError(`Input "${inputName}" not found. Available: ${available || 'none'}`);
           visemeInputRef.current = null;
           emotionInputRef.current = null;
@@ -141,7 +142,7 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
         }
         visemeInputRef.current = visemeInput;
 
-        const emotionInput = inputs.find(input => input.name === EMOTION_INPUT_NAME);
+        const emotionInput = _.find(inputs, input => input.name === EMOTION_INPUT_NAME);
         if (emotionInput) {
           emotionInputRef.current = emotionInput;
         } else {

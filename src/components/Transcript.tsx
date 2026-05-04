@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react';
+import _ from 'lodash';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,14 +52,17 @@ const Transcript = ({turns, onReset}: Props) => {
         className="transcript-body"
         onScroll={handleScroll}
       >
-        {turns.map(
-          (turn, index) => (
-            <div key={index} className={`transcript-turn transcript-${turn.role}`}>
-              <span className="transcript-role">{turn.role === 'user' ? 'You' : 'Flori'}</span>
-              <span className="transcript-text">{turn.text}</span>
-            </div>
+        {
+          _.map(
+            turns,
+            (turn, index) => (
+              <div key={index} className={`transcript-turn transcript-${turn.role}`}>
+                <span className="transcript-role">{turn.role === 'user' ? 'You' : 'Flori'}</span>
+                <span className="transcript-text">{turn.text}</span>
+              </div>
+            )
           )
-        )}
+        }
       </div>
     </div>
   );

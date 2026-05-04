@@ -116,6 +116,12 @@ const App = () => {
   // every change instantly and desyncs face from voice.
   const pendingEmotionsRef = useRef<(EmotionName | undefined)[]>([]);
 
+  //--------------------------------------------------------------------------
+  //
+  //  Helpers
+  //
+  //--------------------------------------------------------------------------
+
   const handleSegmentStart = useCallback(
     () => {
       const next = pendingEmotionsRef.current.shift();
@@ -261,6 +267,12 @@ const App = () => {
 
   isListeningRef.current = isListening;
   const liveSpeech = isListening ? `${liveTranscript} ${interim}`.trim() : '';
+
+  //--------------------------------------------------------------------------
+  //
+  //  Effects
+  //
+  //--------------------------------------------------------------------------
 
   useEffect(
     () => {

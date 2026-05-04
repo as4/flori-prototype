@@ -3,6 +3,7 @@ import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useLLMChat from './hooks/useLLMChat';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
+import useEmotionQueue from './hooks/useEmotionQueue';
 import RiveCharacterDev from './components/RiveCharacterDev';
 import PushToTalkButton from './components/PushToTalkButton';
 import DebugPanel from './components/DebugPanel';
@@ -15,7 +16,7 @@ import TextDebugInput from './components/TextDebugInput';
 import {DEFAULT_LLM_PROVIDER, useLLMProviders} from './llm/providers';
 import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL} from './config';
-import {EMOTION_TO_ID, type EmotionName} from './emotions';
+import type {EmotionName} from './emotions';
 import {log} from './utils/log';
 import './App.css';
 
@@ -86,20 +87,20 @@ const App = () => {
   const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'true');
   const useLLMEmotion = useLLMEmotionStr === 'true';
 
+  const {
+    currentEmotion,
+    setCurrentEmotion,
+    enqueue: enqueueEmotion,
+    reset: resetEmotionQueue,
+    onSegmentStart,
+  } = useEmotionQueue({enabled: useLLMEmotion});
+
   // State
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
-  const [currentEmotion, setCurrentEmotion] = useState(0);
 
   // Set later, after useSpeechRecognition runs. Read by handleChatDone to skip
   // TTS if the user has already started barging in over the previous reply.
   const isListeningRef = useRef(false);
-
-  // Read inside handleSegmentStart (which has no deps) to gate emotion
-  // application without recreating the callback on every toggle. The LLM may
-  // still emit [TAG]s when the toggle is off — past replies in history prime
-  // the pattern even after we drop the addendum from the system prompt.
-  const useLLMEmotionRef = useRef(useLLMEmotion);
-  useLLMEmotionRef.current = useLLMEmotion;
 
   // Latency measurements: stamp the moment we hand the turn off (STT final)
   // and capture two deltas — TTFT (first LLM token) and TTFA (first audio).
@@ -108,30 +109,6 @@ const App = () => {
   const ttftLoggedRef = useRef(false);
   const [ttftMs, setTtftMs] = useState<number | null>(null);
   const [ttfaMs, setTtfaMs] = useState<number | null>(null);
-
-  // Per-sentence emotion queue. Pushed at handleSentence (when each sentence
-  // is queued to TTS); shifted at handleSegmentStart (when the matching audio
-  // actually starts playing). The LLM emits all sentence tags within a few
-  // hundred ms but audio plays for seconds — applying on tag-arrival lands
-  // every change instantly and desyncs face from voice.
-  const pendingEmotionsRef = useRef<(EmotionName | undefined)[]>([]);
-
-  //--------------------------------------------------------------------------
-  //
-  //  Helpers
-  //
-  //--------------------------------------------------------------------------
-
-  const handleSegmentStart = useCallback(
-    () => {
-      const next = pendingEmotionsRef.current.shift();
-      if (next && useLLMEmotionRef.current) {
-        setCurrentEmotion(EMOTION_TO_ID[next]);
-        log('Emotion', next);
-      }
-    },
-    []
-  );
 
   //--------------------------------------------------------------------------
   //
@@ -153,7 +130,7 @@ const App = () => {
     apiKey,
     voiceId,
     modelId,
-    onSegmentStart: handleSegmentStart,
+    onSegmentStart,
   });
 
   const isConnected = ttsStatus === 'connected' || ttsStatus === 'speaking';
@@ -166,11 +143,11 @@ const App = () => {
         log('Not connected — skipping sentence');
         return;
       }
-      pendingEmotionsRef.current.push(emotion);
+      enqueueEmotion(emotion);
       log('Sentence → TTS', sentence);
       streamSentence(sentence);
     },
-    [streamMode, isConnected, streamSentence]
+    [streamMode, isConnected, streamSentence, enqueueEmotion]
   );
 
   const handleChatDone = useCallback(
@@ -238,11 +215,11 @@ const App = () => {
       ttftLoggedRef.current = false;
       setTtftMs(null);
       setTtfaMs(null);
-      pendingEmotionsRef.current = [];
+      resetEmotionQueue();
       beginTurn();
       sendToChat(sttTranscript);
     },
-    [sendToChat, activeLLM.id, beginTurn]
+    [sendToChat, activeLLM.id, beginTurn, resetEmotionQueue]
   );
 
   const handleSttError = useCallback(
@@ -345,7 +322,7 @@ const App = () => {
   const handlePttStart = () => {
     cancelLLM();
     stopPlayback();
-    pendingEmotionsRef.current = [];
+    resetEmotionQueue();
     ensureAudioReady();
     startListening();
   };

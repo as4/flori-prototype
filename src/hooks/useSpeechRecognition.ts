@@ -111,6 +111,21 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
     []
   );
 
+  // Discard in-flight transcript and abort. Clearing the refs first means
+  // onend's combined string is empty and the existing guard skips onFinal,
+  // so the bad transcript never reaches the LLM.
+  const cancel = useCallback(
+    () => {
+      finalRef.current = '';
+      interimRef.current = '';
+      const recognition = recognitionRef.current;
+      if (recognition) {
+        try { recognition.abort(); } catch { /* already gone */ }
+      }
+    },
+    []
+  );
+
   const start = useCallback(
     async () => {
       const Ctor = getCtor();
@@ -204,7 +219,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
     []
   );
 
-  return {isListening, transcript, interim, supported, start, stop};
+  return {isListening, transcript, interim, supported, start, stop, cancel};
 };
 
 export default useSpeechRecognition;

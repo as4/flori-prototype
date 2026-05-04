@@ -253,6 +253,7 @@ const App = () => {
     supported: speechSupported,
     start: startListening,
     stop: stopListening,
+    cancel: cancelListening,
   } = useSpeechRecognition({
     onFinal: handleSttFinal,
     onError: handleSttError,
@@ -271,6 +272,26 @@ const App = () => {
       }
     },
     [status]
+  );
+
+  // ESC aborts an in-flight STT capture without dispatching the (likely
+  // garbled) transcript to the LLM. Skipped while focus is on a form input
+  // so it doesn't intercept the native blur behaviour.
+  useEffect(
+    () => {
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return;
+        if (!isListeningRef.current) return;
+        const target = event.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        cancelListening();
+        log('Cancelled');
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    },
+    [cancelListening]
   );
 
   // Return Flori's face to the listening rest state once a reply finishes

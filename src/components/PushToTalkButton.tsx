@@ -97,7 +97,7 @@ const PushToTalkButton = ({
         interim &&
         <div className="ptt-interim">"{interim}"</div>
       }
-      <div className="ptt-hint">or hold Space</div>
+      <div className="ptt-hint">{state === 'listening' ? 'Esc to cancel' : 'or hold Space'}</div>
     </div>
   );
 };

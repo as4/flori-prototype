@@ -10,7 +10,9 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 const Pill = ({className, type = 'button', onClick, children, ...rest}: Props) => (
   <button
     className={cn(
-      'bg-gradient-to-b from-white to-white/75 border-2 border-white rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.02)]',
+      'border-2 rounded-full',
+      'bg-gradient-to-b from-white to-white/75 border-white',
+      'shadow-[0_4px_16px_rgba(0,0,0,0.02)]',
       onClick && 'cursor-pointer',
       className
     )}

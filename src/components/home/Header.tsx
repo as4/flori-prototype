@@ -6,8 +6,8 @@ import IconSettings from '../../assets/icon-settings.svg?react';
 ////////////////////////////////////////////////////////////////////////////////
 
 const Header = () => (
-  <header className="absolute top-6 right-6 left-6 z-10 flex items-center justify-between sm:top-12 sm:right-12 sm:left-12">
-    <Pill className="flex items-center gap-2 h-12 px-4 font-semibold text-base text-black">
+  <header className="absolute top-6 sm:top-12 right-6 sm:right-12 left-6 sm:left-12 z-10 flex items-center justify-between">
+    <Pill className="h-12 px-4 flex items-center gap-2 font-semibold text-base text-black">
       <LogoLeaf className="w-4 h-4"/>
       <span>Flori</span>
     </Pill>

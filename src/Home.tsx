@@ -11,7 +11,7 @@ const Home = () => (
     <Background/>
     <Header/>
 
-    <div className="absolute inset-0 z-0 flex items-center justify-center pb-20">
+    <div className="absolute inset-0 pb-20 z-0 flex items-center justify-center">
       <RiveCharacter currentViseme="sil"/>
     </div>
 

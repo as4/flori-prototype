@@ -2,6 +2,18 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --animate-halo: halo 1.5s ease-in-out infinite;
+  --animate-halo-slow: halo 1.8s ease-in-out infinite 0.3s;
+}
+
+@keyframes halo {
+  0%, 100% {
+    transform: scale(0.92);
+  }
+  50% {
+    transform: scale(1);
+  }
 }
 
 :root {

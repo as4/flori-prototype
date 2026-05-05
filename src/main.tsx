@@ -7,12 +7,12 @@ import Home from './Home';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// On the public domain (flori.ai) the index route shows the new pre-prod
-// Home page; on Cloudflare's preview hosts (*.pages.dev) and on localhost it
-// stays as the dev panel so coworkers can keep iterating without bouncing
-// through /dev.
-const isPublicDomain = /(^|\.)flori\.ai$/.test(window.location.hostname);
-const IndexPage = isPublicDomain ? Home : App;
+// Home is the default everywhere (flori.ai, localhost, anything custom);
+// only Cloudflare's per-deploy preview hosts (*.pages.dev) keep the dev
+// panel as their index, since those are the URLs the team uses to iterate.
+// Either page is always reachable via /home and /dev explicitly.
+const isPagesPreview = /\.pages\.dev$/.test(window.location.hostname);
+const IndexPage = isPagesPreview ? App : Home;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

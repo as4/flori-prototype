@@ -1,6 +1,6 @@
-import {useRef, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import _ from 'lodash';
-import {Rive} from '@rive-app/canvas';
+import {Rive, ViewModelInstance, ViewModelInstanceNumber} from '@rive-app/canvas';
 import {DEFAULT_RIV_URL} from '../config';
 import {VISEME_TO_ID} from '../hooks/useInworldTTS';
 import {log} from '../utils/log';
@@ -8,6 +8,11 @@ import {log} from '../utils/log';
 ////////////////////////////////////////////////////////////////////////////////
 
 const EMOTION_INPUT_NAME = 'emotionId';
+
+const VIEW_MODEL_NAME = 'data';
+const VIEW_MODEL_INSTANCE_NAME = 'Instance';
+const VISEME_PROP_NAME = 'viseme_id';
+const EMOTION_PROP_NAME = 'emotion_id';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +37,9 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
   const riveRef = useRef<Rive | null>(null);
   const visemeInputRef = useRef<StateMachineInput | null>(null);
   const emotionInputRef = useRef<StateMachineInput | null>(null);
+  const viewModelInstanceRef = useRef<ViewModelInstance | null>(null);
+  const visemePropRef = useRef<ViewModelInstanceNumber | null>(null);
+  const emotionPropRef = useRef<ViewModelInstanceNumber | null>(null);
 
   // State
   const [bundledBuffer, setBundledBuffer] = useState<ArrayBuffer | null>(null);
@@ -41,6 +49,28 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
   ////////////////////////////////////////////////////////////////////////////////
 
   const activeBuffer = riveBuffer ?? bundledBuffer;
+
+  //--------------------------------------------------------------------------
+  //
+  //  Helpers
+  //
+  //--------------------------------------------------------------------------
+
+  const cleanupRive = useCallback(
+    () => {
+      if (riveRef.current) {
+        riveRef.current.cleanup();
+        riveRef.current = null;
+      }
+
+      visemeInputRef.current = null;
+      emotionInputRef.current = null;
+      viewModelInstanceRef.current = null;
+      visemePropRef.current = null;
+      emotionPropRef.current = null;
+    },
+    []
+  );
 
   //--------------------------------------------------------------------------
   //
@@ -79,12 +109,7 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
     () => {
       if (!activeBuffer || !canvasRef.current) return;
 
-      if (riveRef.current) {
-        riveRef.current.cleanup();
-        riveRef.current = null;
-        visemeInputRef.current = null;
-        emotionInputRef.current = null;
-      }
+      cleanupRive();
       setMachineName(null);
 
       try {
@@ -95,10 +120,12 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
           onLoad: () => {
             const names = rive.stateMachineNames || [];
             const [firstMachine] = names;
+
             if (!firstMachine) {
               setError('No state machines found in .riv file');
               return;
             }
+
             riveRef.current = rive;
             rive.resizeDrawingSurfaceToCanvas();
             setMachineName(firstMachine);
@@ -108,21 +135,15 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
         setError(`Failed to load .riv: ${(loadError as Error).message}`);
       }
 
-      return () => {
-        if (riveRef.current) {
-          riveRef.current.cleanup();
-          riveRef.current = null;
-          visemeInputRef.current = null;
-          emotionInputRef.current = null;
-        }
-      };
+      return cleanupRive;
     },
     [activeBuffer]
   );
 
-  // Start the state machine and bind inputs. The viseme input is required
-  // (no lip-sync without it). The emotion input is optional — older .riv
-  // files may not have it; warn and keep going.
+  // Start the state machine and bind state. Prefer the data-binding
+  // ViewModel ('data') when present — that's the partner-style contract.
+  // Fall back to state machine inputs for older .riv files that haven't
+  // migrated yet.
   useEffect(
     () => {
       const rive = riveRef.current;
@@ -130,9 +151,35 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
 
       try {
         rive.play(machineName);
+
+        const dataVM = rive.viewModelByName(VIEW_MODEL_NAME);
+
+        if (dataVM) {
+          const instance = dataVM.instanceByName(VIEW_MODEL_INSTANCE_NAME)
+            ?? dataVM.defaultInstance()
+            ?? dataVM.instance();
+          const visemeProp = instance.number(VISEME_PROP_NAME);
+          const emotionProp = instance.number(EMOTION_PROP_NAME);
+
+          if (visemeProp && emotionProp) {
+            rive.bindViewModelInstance(instance);
+            viewModelInstanceRef.current = instance;
+            visemePropRef.current = visemeProp;
+            emotionPropRef.current = emotionProp;
+            visemeInputRef.current = null;
+            emotionInputRef.current = null;
+            setError(null);
+            log(`Rive: bound '${VIEW_MODEL_NAME}' ViewModel`);
+            return;
+          }
+
+          log(`Rive: '${VIEW_MODEL_NAME}' ViewModel missing ${VISEME_PROP_NAME}/${EMOTION_PROP_NAME} — falling back to inputs`);
+        }
+
         const inputs = (rive.stateMachineInputs(machineName) || []) as StateMachineInput[];
 
-        const visemeInput = _.find(inputs, input => input.name === inputName);
+        const visemeInput = _.find(inputs, {name: inputName});
+
         if (!visemeInput) {
           const available = _.map(inputs, input => `${input.name} (${input.type})`).join(', ');
           setError(`Input "${inputName}" not found. Available: ${available || 'none'}`);
@@ -140,15 +187,21 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
           emotionInputRef.current = null;
           return;
         }
+
         visemeInputRef.current = visemeInput;
 
-        const emotionInput = _.find(inputs, input => input.name === EMOTION_INPUT_NAME);
+        const emotionInput = _.find(inputs, {name: EMOTION_INPUT_NAME});
+
         if (emotionInput) {
           emotionInputRef.current = emotionInput;
         } else {
           emotionInputRef.current = null;
           log(`Rive: "${EMOTION_INPUT_NAME}" input not found — emotions disabled`);
         }
+
+        viewModelInstanceRef.current = null;
+        visemePropRef.current = null;
+        emotionPropRef.current = null;
 
         setError(null);
       } catch (playError) {
@@ -158,21 +211,30 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
     [machineName, inputName]
   );
 
-  // Drive the viseme input from currentViseme.
+  // Drive the viseme value from currentViseme. Prefers the data-binding
+  // ViewModel property when bound, falls back to the state machine input.
   useEffect(
     () => {
-      if (!visemeInputRef.current) return;
-      visemeInputRef.current.value = VISEME_TO_ID[currentViseme] ?? 0;
+      const visemeId = VISEME_TO_ID[currentViseme] ?? 0;
+
+      if (visemePropRef.current) {
+        visemePropRef.current.value = visemeId;
+      } else if (visemeInputRef.current) {
+        visemeInputRef.current.value = visemeId;
+      }
     },
     [currentViseme]
   );
 
-  // Drive the emotion input from currentEmotion. No-op when the .riv has no
-  // emotion input bound.
+  // Drive the emotion value from currentEmotion. No-op when neither path
+  // is bound (e.g. older .riv with no emotion input).
   useEffect(
     () => {
-      if (!emotionInputRef.current) return;
-      emotionInputRef.current.value = currentEmotion;
+      if (emotionPropRef.current) {
+        emotionPropRef.current.value = currentEmotion;
+      } else if (emotionInputRef.current) {
+        emotionInputRef.current.value = currentEmotion;
+      }
     },
     [currentEmotion]
   );

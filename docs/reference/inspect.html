@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Rive .riv inspector</title>
+<style>
+  body {font: 14px -apple-system, system-ui, sans-serif; margin: 24px; max-width: 1100px;}
+  h1 {font-size: 18px; margin: 0 0 4px;}
+  p {color: #666; margin: 0 0 16px;}
+  pre {background: #f4f4f4; border-radius: 8px; padding: 16px; white-space: pre; overflow-x: auto;}
+  input[type=file] {margin-bottom: 16px;}
+</style>
+</head>
+<body>
+<h1>Rive .riv inspector</h1>
+<p>Pick a .riv to dump its ViewModels, properties, enums, and default instances. Schema-only — no artwork rendered.</p>
+<input type="file" id="picker" accept=".riv">
+<pre id="out">No file picked.</pre>
+<canvas id="canvas" width="1" height="1" style="display:none"></canvas>
+
+<script type="module">
+import * as RiveModule from 'https://esm.sh/@rive-app/canvas@2.36.0';
+const Rive = RiveModule.Rive ?? RiveModule.default?.Rive ?? RiveModule.default;
+if (typeof Rive !== 'function') {
+  document.getElementById('out').textContent =
+    'Could not resolve Rive constructor from CDN module. Keys: ' +
+    Object.keys(RiveModule).join(', ');
+  throw new Error('Rive constructor not found in module');
+}
+
+const out = document.getElementById('out');
+const canvas = document.getElementById('canvas');
+const picker = document.getElementById('picker');
+
+picker.addEventListener(
+  'change',
+  async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    out.textContent = `Loading ${file.name}...`;
+    const buffer = await file.arrayBuffer();
+
+    const rive = new Rive({
+      buffer,
+      canvas,
+      autoplay: false,
+      onLoad: () => {
+        try {
+          out.textContent = inspect(rive, file.name);
+        } catch (error) {
+          out.textContent = `Error: ${error.message}\n\n${error.stack}`;
+        } finally {
+          rive.cleanup();
+        }
+      },
+    });
+  }
+);
+
+const inspect = (rive, fileName) => {
+  const lines = [];
+
+  lines.push(`File: ${fileName}`);
+  lines.push('');
+
+  lines.push('Artboards:');
+  for (const name of rive.artboardNames || []) {
+    lines.push(`  - ${name}`);
+  }
+  lines.push('');
+
+  lines.push('State machines (active artboard):');
+  for (const name of rive.stateMachineNames || []) {
+    lines.push(`  - ${name}`);
+  }
+  lines.push('');
+
+  const vmCount = rive.viewModelCount;
+  lines.push(`ViewModels (${vmCount}):`);
+
+  for (let i = 0; i < vmCount; i++) {
+    const vm = rive.viewModelByIndex(i);
+    if (!vm) continue;
+
+    const instanceNames = vm.instanceNames || [];
+    lines.push('');
+    lines.push(`  [${i}] ${vm.name}`);
+    lines.push(`    Instances (${vm.instanceCount}): ${instanceNames.join(', ') || '—'}`);
+    lines.push(`    Properties:`);
+
+    for (const prop of vm.properties || []) {
+      lines.push(`      - ${prop.name.padEnd(28)} ${prop.type}`);
+    }
+
+    const defaultInstance = vm.defaultInstance();
+    if (defaultInstance) {
+      lines.push(`    Default instance values:`);
+      for (const prop of vm.properties || []) {
+        const value = readInstanceValue(defaultInstance, prop);
+        lines.push(`      - ${prop.name.padEnd(28)} ${value}`);
+      }
+    }
+  }
+
+  lines.push('');
+
+  const defaultVM = rive.defaultViewModel();
+  if (defaultVM) {
+    lines.push(`Default ViewModel for active artboard: ${defaultVM.name}`);
+    lines.push('');
+  }
+
+  const enums = rive.enums() || [];
+  lines.push(`Enums (${enums.length}):`);
+  for (const dataEnum of enums) {
+    lines.push(`  ${dataEnum.name}: ${(dataEnum.values || []).join(', ') || '—'}`);
+  }
+
+  return lines.join('\n');
+};
+
+const readInstanceValue = (instance, prop) => {
+  try {
+    switch (prop.type) {
+      case 'number':
+      case 'integer': return String(instance.number(prop.name)?.value ?? '—');
+      case 'string':  return JSON.stringify(instance.string(prop.name)?.value ?? '');
+      case 'boolean': return String(instance.boolean(prop.name)?.value ?? '—');
+      case 'color': {
+        const value = instance.color(prop.name)?.value;
+        return value == null ? '—' : `0x${value.toString(16).padStart(8, '0').toUpperCase()}`;
+      }
+      case 'enumType': return JSON.stringify(instance.enum(prop.name)?.value ?? '');
+      case 'trigger':  return '(trigger)';
+      case 'list':     return `(list, length=${instance.list(prop.name)?.length ?? '?'})`;
+      case 'viewModel':return `(nested ViewModel)`;
+      case 'image':    return '(image)';
+      case 'artboard': return '(artboard)';
+      default:         return `(unknown type: ${prop.type})`;
+    }
+  } catch (error) {
+    return `(read error: ${error.message})`;
+  }
+};
+</script>
+</body>
+</html>

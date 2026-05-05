@@ -28,11 +28,12 @@ type RiveCharacterProps = {
   currentViseme: string;
   inputName?: string;
   currentEmotion?: number;
+  onReady?: () => void;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', currentEmotion = 0}: RiveCharacterProps) => {
+const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', currentEmotion = 0, onReady}: RiveCharacterProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const riveRef = useRef<Rive | null>(null);
   const visemeInputRef = useRef<StateMachineInput | null>(null);
@@ -237,6 +238,15 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
       }
     },
     [currentEmotion]
+  );
+
+  // Fire onReady once the state machine is up and there's no error — caller
+  // uses this to fade the character in only after the first frame is drawn.
+  useEffect(
+    () => {
+      if (machineName && !error) onReady?.();
+    },
+    [machineName, error, onReady]
   );
 
   ////////////////////////////////////////////////////////////////////////////////

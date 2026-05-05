@@ -5,3 +5,20 @@
   background: transparent;
   border-radius: 0;
 }
+
+/* Scale Flori up so she matches the Figma reference (290px tall vs the
+ * .riv's natural 227px). 400 * 290/227 ≈ 512. The painted mobile backgrounds
+ * were drawn around this larger Flori; on desktop the cloud variant also
+ * benefits from the bigger character. Both `.character-stage` and the
+ * canvas's `max-width: 100%` need to be lifted so the wider canvas isn't
+ * capped at the App.css 400px default. */
+.home .character-stage {
+  width: 512px;
+  height: 512px;
+}
+
+.home .rive-canvas {
+  width: 512px;
+  height: 512px;
+  max-width: none;
+}

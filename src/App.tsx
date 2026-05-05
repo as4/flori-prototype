@@ -365,6 +365,20 @@ const App = () => {
             onCurrentEmotionChange={setCurrentEmotion}
             onUseLLMEmotionChange={value => setUseLLMEmotionStr(String(value))}
           />
+
+          <PushToTalkButton
+            state={pttState}
+            interim={liveSpeech}
+            onPressStart={handlePttStart}
+            onPressEnd={stopListening}
+          />
+
+          {
+            !speechSupported &&
+            <div className="rive-error">
+              Speech recognition not supported in this browser — use the text input below.
+            </div>
+          }
         </div>
 
         <div className="panel panel-controls">
@@ -423,20 +437,6 @@ const App = () => {
                 </button>
             }
           </div>
-
-          <PushToTalkButton
-            state={pttState}
-            interim={liveSpeech}
-            onPressStart={handlePttStart}
-            onPressEnd={stopListening}
-          />
-
-          {
-            !speechSupported &&
-            <div className="rive-error">
-              Speech recognition not supported in this browser — use the text input below.
-            </div>
-          }
 
           <Transcript turns={transcript} onReset={handleResetChat} />
 

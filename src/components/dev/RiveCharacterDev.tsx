@@ -102,7 +102,7 @@ const RiveCharacterDev = ({
         />
       </div>
 
-      <div className="mode-switcher">
+      <div className="mode-switcher compact">
         {
           _.map(
             EMOTIONS,

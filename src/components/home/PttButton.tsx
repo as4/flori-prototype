@@ -112,6 +112,7 @@ const PttButton = () => {
         className={cn(
           'relative w-full h-full rounded-full border-2',
           'flex items-center justify-center gap-1',
+          'select-none [-webkit-touch-callout:none] [-webkit-tap-highlight-color:transparent]',
           'cursor-pointer transition-[background-color,box-shadow,border-color] duration-300',
           isPressed
             ? 'bg-[#FF5A7D] border-transparent shadow-[0_0_0_8px_#FF5A7D]'

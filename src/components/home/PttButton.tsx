@@ -1,22 +1,27 @@
 import {useCallback, useEffect, useState, type PointerEvent} from 'react';
 import _ from 'lodash';
+import useSpeechRecognition from '../../hooks/useSpeechRecognition';
+import useMicLevels, {unlockAudioContext} from '../../hooks/useMicLevels';
+import useInterimLevels from '../../hooks/useInterimLevels';
 import {cn} from '../../utils/cn';
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const BAR_COUNT = 6;
 const IDLE_BARS = [8, 16, 32, 12, 20, 8];
 
-const ACTIVE_BAR_MIN = 6;
-const ACTIVE_BAR_MAX = 32;
-const ACTIVE_TICK_MS = 120;
-
-const randomBars = () => _.times(6, () => Math.round(ACTIVE_BAR_MIN + Math.random() * (ACTIVE_BAR_MAX - ACTIVE_BAR_MIN)));
+const ACTIVE_BAR_MIN_PX = 6;
+const ACTIVE_BAR_MAX_PX = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const PttButton = () => {
   const [isPressed, setIsPressed] = useState(false);
-  const [bars, setBars] = useState<number[]>(IDLE_BARS);
+
+  const {stream, interim, isListening, start, stop} = useSpeechRecognition();
+  const realLevels = useMicLevels(stream, BAR_COUNT);
+  const fallbackLevels = useInterimLevels(isListening && !stream, interim, BAR_COUNT);
+  const levels = stream ? realLevels : fallbackLevels;
 
   //--------------------------------------------------------------------------
   //
@@ -30,14 +35,21 @@ const PttButton = () => {
       // Lock subsequent pointer events to this button so the press state
       // releases reliably even if the finger drifts off on iOS.
       event.currentTarget.setPointerCapture(event.pointerId);
+      // Resume the AudioContext synchronously inside this user gesture so the
+      // analyser graph is 'running' by the time useMicLevels' effect attaches.
+      unlockAudioContext();
       setIsPressed(true);
+      start();
     },
-    []
+    [start]
   );
 
   const handlePressEnd = useCallback(
-    () => setIsPressed(false),
-    []
+    () => {
+      setIsPressed(false);
+      stop();
+    },
+    [stop]
   );
 
   //--------------------------------------------------------------------------
@@ -45,21 +57,6 @@ const PttButton = () => {
   //  Effects
   //
   //--------------------------------------------------------------------------
-
-  // Drive the bar heights while pressed. Random for now — swap to mic
-  // FFT amplitudes in a follow-up.
-  useEffect(
-    () => {
-      if (!isPressed) {
-        setBars(IDLE_BARS);
-        return;
-      }
-      setBars(randomBars());
-      const interval = setInterval(() => setBars(randomBars()), ACTIVE_TICK_MS);
-      return () => clearInterval(interval);
-    },
-    [isPressed]
-  );
 
   // Space hold = pointer hold; matches the "Hold Space to speak" hint.
   useEffect(
@@ -70,7 +67,9 @@ const PttButton = () => {
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
         event.preventDefault();
         if (event.repeat) return;
+        unlockAudioContext();
         setIsPressed(true);
+        start();
       };
       const handleKeyUp = (event: KeyboardEvent) => {
         if (event.code !== 'Space') return;
@@ -78,6 +77,7 @@ const PttButton = () => {
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
         event.preventDefault();
         setIsPressed(false);
+        stop();
       };
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
@@ -86,8 +86,15 @@ const PttButton = () => {
         window.removeEventListener('keyup', handleKeyUp);
       };
     },
-    []
+    [start, stop]
   );
+
+  ////////////////////////////////////////////////////////////////////////////////
+
+  const bars = isPressed ?
+    _.map(levels, level => ACTIVE_BAR_MIN_PX + level * (ACTIVE_BAR_MAX_PX - ACTIVE_BAR_MIN_PX))
+    :
+    IDLE_BARS;
 
   ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +138,7 @@ const PttButton = () => {
                 key={index}
                 className={cn(
                   'block w-[2.5px] rounded-full',
-                  'transition-[height,background-color] duration-200',
+                  'transition-[background-color] duration-200',
                   isPressed ? 'bg-white' : 'bg-black'
                 )}
                 style={{height}}

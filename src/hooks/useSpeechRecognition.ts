@@ -63,41 +63,55 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   const [transcript, setTranscript] = useState('');
   const [interim, setInterim] = useState('');
   const [supported] = useState(() => getCtor() !== null);
+  // Live mic stream while listening (Chrome only). Safari's
+  // webkitSpeechRecognition owns the mic exclusively, so we leave this null
+  // there. Consumers (e.g. useMicLevels) read this to drive visualization.
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const finalRef = useRef('');
   const interimRef = useRef('');
-  const micGrantedRef = useRef(false);
   const onFinalRef = useRef(onFinal);
   const onErrorRef = useRef(onError);
 
   onFinalRef.current = onFinal;
   onErrorRef.current = onError;
 
-  // Chrome's webkitSpeechRecognition will not trigger a mic prompt on its own,
-  // so we pre-request via getUserMedia and drop the stream. Safari manages its
-  // own permission flow inside webkitSpeechRecognition.start() — pre-fetching
-  // there conflicts with its internal permission check, so we skip it.
-  const ensureMicPermission = async () => {
-    if (micGrantedRef.current) return true;
-    if (isSafari()) {
-      micGrantedRef.current = true;
-      return true;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      onErrorRef.current?.('Microphone API not available (needs HTTPS or localhost)');
-      return false;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-      for (const track of stream.getTracks()) {
+  const releaseStream = useCallback(
+    () => {
+      const current = streamRef.current;
+      if (!current) return;
+
+      for (const track of current.getTracks()) {
         track.stop();
       }
-      micGrantedRef.current = true;
-      return true;
+
+      streamRef.current = null;
+      setStream(null);
+    },
+    []
+  );
+
+  // Chrome's webkitSpeechRecognition won't trigger a mic prompt on its own,
+  // so we open a getUserMedia stream ourselves and keep it alive for the
+  // duration of the listening session — that lets consumers attach an
+  // AnalyserNode for level visualization. Safari manages its own permission
+  // flow inside webkitSpeechRecognition.start() and a parallel getUserMedia
+  // call there conflicts with its internal permission check, so we skip it.
+  const acquireStream = async (): Promise<MediaStream | null | 'denied'> => {
+    if (isSafari()) return null;
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      onErrorRef.current?.('Microphone API not available (needs HTTPS or localhost)');
+      return 'denied';
+    }
+
+    try {
+      return await navigator.mediaDevices.getUserMedia({audio: true});
     } catch (error) {
       onErrorRef.current?.(`Microphone denied: ${(error as Error).message}`);
-      return false;
+      return 'denied';
     }
   };
 
@@ -134,12 +148,21 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
         return;
       }
 
-      const granted = await ensureMicPermission();
-      if (!granted) return;
+      const acquired = await acquireStream();
+      if (acquired === 'denied') return;
 
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch { /* noop */ }
         recognitionRef.current = null;
+      }
+
+      // A previous session's stream may still be open if the user re-presses
+      // before onend fires. Close it before installing the new one.
+      releaseStream();
+
+      if (acquired) {
+        streamRef.current = acquired;
+        setStream(acquired);
       }
 
       const recognition = new Ctor();
@@ -198,6 +221,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
           onFinalRef.current?.(combined);
         }
         recognitionRef.current = null;
+        releaseStream();
       };
 
       recognitionRef.current = recognition;
@@ -207,7 +231,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
         onErrorRef.current?.((error as Error).message);
       }
     },
-    [lang]
+    [lang, releaseStream]
   );
 
   useEffect(
@@ -215,11 +239,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch { /* noop */ }
       }
+      releaseStream();
     },
-    []
+    [releaseStream]
   );
 
-  return {isListening, transcript, interim, supported, start, stop, cancel};
+  return {isListening, transcript, interim, supported, stream, start, stop, cancel};
 };
 
 export default useSpeechRecognition;

@@ -233,8 +233,10 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
     () => {
       if (emotionPropRef.current) {
         emotionPropRef.current.value = currentEmotion;
+        log(`Rive emotion ← ${currentEmotion} (ViewModel)`);
       } else if (emotionInputRef.current) {
         emotionInputRef.current.value = currentEmotion;
+        log(`Rive emotion ← ${currentEmotion} (input)`);
       }
     },
     [currentEmotion]

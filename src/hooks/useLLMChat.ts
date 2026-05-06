@@ -88,12 +88,15 @@ const useLLMChat = ({
       let pendingBuffer = '';
 
       // Tag-stripping state. `leftover` holds an unclosed `[…` that arrived
-      // at the end of a chunk. `pendingEmotion` is the latest tag we've seen
-      // but haven't yet attached to a sentence — claimed by the next flush.
+      // at the end of a chunk. `emotionMarkers` records each tag at its
+      // position in `pendingBuffer` so flushSentences can attach the correct
+      // tag to each sentence even when multiple tags arrive in one chunk
+      // before any sentence terminator (a single mutable pendingEmotion would
+      // get overwritten and the first sentence would inherit the wrong tag).
       let leftover = '';
-      let pendingEmotion: EmotionName | null = null;
+      const emotionMarkers: {position: number; emotion: EmotionName}[] = [];
 
-      const stripTags = (incoming: string): string => {
+      const stripTags = (incoming: string, baseOffset: number): string => {
         const working = leftover + incoming;
         leftover = '';
         let output = '';
@@ -117,7 +120,12 @@ const useLLMChat = ({
           }
           const tagBody = working.slice(openIdx + 1, closeIdx).trim().toLowerCase();
           if (tagBody in EMOTION_TO_ID) {
-            pendingEmotion = tagBody as EmotionName;
+            // Position is where the tag sits in the pendingBuffer once this
+            // chunk's output is appended.
+            emotionMarkers.push({
+              position: baseOffset + output.length,
+              emotion: tagBody as EmotionName,
+            });
           } else {
             output += working.slice(openIdx, closeIdx + 1);
           }
@@ -131,12 +139,31 @@ const useLLMChat = ({
         while (match) {
           const endIndex = (match.index ?? 0) + match[1].length;
           const sentence = pendingBuffer.slice(0, endIndex).trim();
-          pendingBuffer = pendingBuffer.slice(endIndex).trimStart();
+          const remaining = pendingBuffer.slice(endIndex).trimStart();
+          const consumedLength = pendingBuffer.length - remaining.length;
+          pendingBuffer = remaining;
+
           if (sentence) {
-            const emotion = pendingEmotion ?? undefined;
-            pendingEmotion = null;
+            // Latest marker at-or-before the sentence terminator wins; drop
+            // it and any earlier markers (already accounted for or stale).
+            let emotion: EmotionName | undefined;
+            let dropCount = 0;
+            for (let i = 0; i < emotionMarkers.length; i++) {
+              if (emotionMarkers[i].position > endIndex) break;
+              emotion = emotionMarkers[i].emotion;
+              dropCount = i + 1;
+            }
+            emotionMarkers.splice(0, dropCount);
             onSentenceRef.current?.(sentence, emotion);
           }
+
+          // Shift remaining markers into the new buffer's coordinate space.
+          // A marker inside the consumed prefix but past the sentence
+          // terminator (i.e. tagged for the upcoming sentence) clamps to 0.
+          for (const marker of emotionMarkers) {
+            marker.position = Math.max(0, marker.position - consumedLength);
+          }
+
           match = pendingBuffer.match(SENTENCE_TERMINATORS);
         }
       };
@@ -149,7 +176,7 @@ const useLLMChat = ({
           signal: controller.signal,
           onChunk: text => {
             rawText += text;
-            const cleaned = stripTags(text);
+            const cleaned = stripTags(text, pendingBuffer.length);
             if (!cleaned) return;
             fullText += cleaned;
             pendingBuffer += cleaned;
@@ -167,8 +194,9 @@ const useLLMChat = ({
 
         const tail = pendingBuffer.trim();
         if (tail) {
-          const emotion = pendingEmotion ?? undefined;
-          pendingEmotion = null;
+          // Latest queued marker wins for the un-terminated tail.
+          const emotion = emotionMarkers[emotionMarkers.length - 1]?.emotion;
+          emotionMarkers.length = 0;
           onSentenceRef.current?.(tail, emotion);
         }
 

@@ -34,6 +34,7 @@ const useEmotionQueue = ({enabled}: Options) => {
   const enqueue = useCallback(
     (emotion: EmotionName | undefined) => {
       pendingRef.current.push(emotion);
+      if (emotion) log('Emotion enqueued', emotion);
     },
     []
   );
@@ -50,7 +51,7 @@ const useEmotionQueue = ({enabled}: Options) => {
       const next = pendingRef.current.shift();
       if (next && enabledRef.current) {
         setCurrentEmotion(EMOTION_TO_ID[next]);
-        log('Emotion', next);
+        log('Emotion requested', next);
       }
     },
     []

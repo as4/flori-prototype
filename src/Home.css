@@ -22,3 +22,15 @@
   height: 512px;
   max-width: none;
 }
+
+/* Footer prefers viewport-bottom (100% - 156px = bottom-12 + footer height)
+ * but is allowed to climb up to (50% + 164px). That's the canvas bottom
+ * (50% + 254px) minus 90px of allowable overlap into the empty area below
+ * Flori's feet inside her 512×512 canvas. max() picks whichever is lower
+ * on the screen, so tall viewports keep the footer at the bottom and short
+ * ones pin it just under Flori herself — single rule, no media query, no
+ * Flori scaling. */
+.home > footer {
+  top: max(calc(100% - 156px), calc(50% + 164px));
+  bottom: auto;
+}

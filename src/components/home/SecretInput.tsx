@@ -9,25 +9,28 @@ type Props = {
   id?: string;
   placeholder?: string;
   value: string;
+  disabled?: boolean;
   onChange?: (value: string) => void;
 };
 
 // Masked text input with Safari-keychain dodges. Uses type="text" plus the
 // -webkit-text-security style instead of type="password" — Safari aggressively
 // nags to save anything typed into a password field to Keychain on tab close.
-const SecretInput: React.FC<Props> = ({className, id, placeholder, value, onChange}) => (
+const SecretInput: React.FC<Props> = ({className, id, placeholder, value, disabled, onChange}) => (
   <input
     id={id}
     className={cn(
       'w-full px-4 py-3 rounded-3xl',
       'bg-white/[0.16] text-base text-white outline-none',
       'placeholder:text-white/40',
+      'disabled:opacity-[0.48] disabled:cursor-not-allowed',
       className
     )}
     style={{WebkitTextSecurity: 'disc'} as CSSProperties}
     type="text"
     value={value}
     placeholder={placeholder}
+    disabled={disabled}
     autoComplete="off"
     autoCorrect="off"
     autoCapitalize="off"

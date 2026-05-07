@@ -1,4 +1,4 @@
-import {useState, useRef, useCallback} from 'react';
+import {useState, useRef, useCallback, useEffect} from 'react';
 import {log} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,16 +18,21 @@ export type VisemeEntry = {
 ////////////////////////////////////////////////////////////////////////////////
 
 type UseAudioPlaybackOptions = {
+  muted?: boolean;
   onSegmentStart?: () => void;
 };
 
-const useAudioPlayback = ({onSegmentStart}: UseAudioPlaybackOptions = {}) => {
+const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {}) => {
   const [currentViseme, setCurrentViseme] = useState('sil');
   const [isPlaying, setIsPlaying] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const audioPrimedRef = useRef(false);
+  // Latest muted, read inside ensureAudioReady so the gain initializes
+  // correctly when audio is unlocked while already muted.
+  const mutedRef = useRef(Boolean(muted));
+  mutedRef.current = Boolean(muted);
 
   // A "turn" spans multiple flushes (sentences). turnAudioStartRef anchors the
   // shared viseme timeline; nextStartTimeRef threads sequential segments
@@ -45,6 +50,17 @@ const useAudioPlayback = ({onSegmentStart}: UseAudioPlaybackOptions = {}) => {
   const segmentStartTimersRef = useRef<number[]>([]);
   const onSegmentStartRef = useRef(onSegmentStart);
   onSegmentStartRef.current = onSegmentStart;
+
+  // Live-update master gain when muted toggles mid-playback so the next
+  // sample played comes out silenced (or unmuted) without restarting the
+  // audio graph.
+  useEffect(
+    () => {
+      const gain = masterGainRef.current;
+      if (gain) gain.gain.value = +!muted;
+    },
+    [muted]
+  );
 
   //--------------------------------------------------------------------------
   //
@@ -146,7 +162,7 @@ const useAudioPlayback = ({onSegmentStart}: UseAudioPlaybackOptions = {}) => {
       const audioContext = audioContextRef.current;
       if (!masterGainRef.current) {
         masterGainRef.current = audioContext.createGain();
-        masterGainRef.current.gain.value = 1;
+        masterGainRef.current.gain.value = +!mutedRef.current;
         masterGainRef.current.connect(audioContext.destination);
       }
       if (audioContext.state === 'suspended') {

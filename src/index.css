@@ -7,12 +7,37 @@
   --animate-halo-slow: halo 1.8s ease-in-out infinite 0.3s;
 }
 
+/* PTT loader bars: each gets its own GPU layer (will-change + translateZ)
+ * so Safari doesn't merge the sibling spans into the button's composited
+ * layer and silently drop their opacity animations.
+ */
+.loader-bar {
+  animation: loader-wave 1.4s ease-in-out infinite;
+  will-change: opacity;
+  transform: translateZ(0);
+}
+.loader-bar:nth-child(1) { animation-delay: 0s; }
+.loader-bar:nth-child(2) { animation-delay: 0.15s; }
+.loader-bar:nth-child(3) { animation-delay: 0.30s; }
+.loader-bar:nth-child(4) { animation-delay: 0.45s; }
+.loader-bar:nth-child(5) { animation-delay: 0.60s; }
+.loader-bar:nth-child(6) { animation-delay: 0.75s; }
+
 @keyframes halo {
   0%, 100% {
     transform: scale(0.92);
   }
   50% {
     transform: scale(1);
+  }
+}
+
+@keyframes loader-wave {
+  0%, 50%, 100% {
+    opacity: 0.2;
+  }
+  25% {
+    opacity: 1;
   }
 }
 

@@ -24,13 +24,14 @@ type UseInworldTTSOptions = {
   apiKey: string;
   voiceId: string;
   modelId: string;
+  muted?: boolean;
   onSegmentStart?: () => void;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const useInworldTTS = ({apiKey, voiceId, modelId, onSegmentStart}: UseInworldTTSOptions) => {
-  const {currentViseme, isPlaying, ensureAudioReady, appendSegment, cancel: cancelPlayback} = useAudioPlayback({onSegmentStart});
+const useInworldTTS = ({apiKey, voiceId, modelId, muted, onSegmentStart}: UseInworldTTSOptions) => {
+  const {currentViseme, isPlaying, ensureAudioReady, appendSegment, cancel: cancelPlayback} = useAudioPlayback({muted, onSegmentStart});
 
   const {
     connectionStatus,

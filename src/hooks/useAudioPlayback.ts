@@ -168,11 +168,14 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
       }
-      // On iOS, declare our audio as "playback" so the silent/ringer switch
-      // doesn't mute Flori. Supported since Safari 17.
+      // On iOS, declare our audio as "play-and-record" so the same session
+      // can both play TTS and capture mic via getUserMedia. The earlier
+      // "playback" setting blocked getUserMedia with "AudioSession category
+      // is not compatible with audio capture". Trade-off: play-and-record
+      // respects the silent switch, so a muted ringer will mute Flori.
       const audioSession = (navigator as Navigator & {audioSession?: {type: string}}).audioSession;
       if (audioSession) {
-        try { audioSession.type = 'playback'; } catch { /* unsupported type */ }
+        try { audioSession.type = 'play-and-record'; } catch { /* unsupported type */ }
       }
       if (audioPrimedRef.current) return;
       try {

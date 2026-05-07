@@ -28,6 +28,14 @@ import './Home.css';
 const SYSTEM_PROMPT = `${DEFAULT_SYSTEM_PROMPT}\n\n${DEFAULT_EMOTION_PROMPT}`;
 const MIC_DENIED_PATTERN = /denied|not-allowed|service-not-allowed|service permission/i;
 
+// iOS Safari steals window focus when it shows a system permission prompt
+// without firing pointercancel on our button. We treat blur during a press
+// as an auto-release. Desktop browsers blur for unrelated reasons (alt-tab,
+// devtools focus), so this only kicks in on iOS.
+const isIOS = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const Home = () => {
@@ -187,17 +195,18 @@ const Home = () => {
 
   const hasKeys = Boolean(apiKey) && Boolean(llmKey);
 
-  // Order matters: listening wins over initializing because the user is
-  // actively talking (their voice is being captured) — they need the bar
-  // animation as feedback, not the connect pulse. While the user is pressing
-  // but isListening hasn't flipped yet (STT/TTS still setting up over the
-  // network — 1-2s even with pre-granted mic), the button shows the
-  // initializing pulse so the press feels acknowledged.
+  // Once TTS is past 'connecting', a press goes optimistically straight to
+  // listening — the getUserMedia probe + recognition.start handshake only
+  // takes ~100ms when permission is already granted, but a brief
+  // 'initializing' flash on every tap reads as laggy. We only show
+  // 'initializing' when there's a real wait worth signaling: TTS is still
+  // mid-connect and the user is pressing.
   const pttState: PttState =
     !hasKeys ? 'no-keys' :
     micDenied ? 'denied' :
     isListening ? 'listening' :
-    pttPressed ? 'initializing' :
+    pttPressed && ttsStatus === 'connecting' ? 'initializing' :
+    pttPressed ? 'listening' :
     isStreaming ? 'thinking' :
     (status === 'speaking' || status === 'processing') ? 'speaking' :
     ttsStatus === 'connecting' ? 'initializing' :
@@ -356,6 +365,67 @@ const Home = () => {
       }
     },
     [status]
+  );
+
+  // iOS-only: when a system prompt steals focus mid-press, our pointerup
+  // never arrives. Treat blur during a press as an implicit release so the
+  // PTT button doesn't stay stuck after the user grants/denies permission.
+  useEffect(
+    () => {
+      if (!pttPressed || !isIOS()) return;
+
+      const handleBlur = () => {
+        log('Window blurred during press — auto-releasing PTT');
+        setPttPressed(false);
+        stopListening();
+      };
+
+      window.addEventListener('blur', handleBlur);
+      return () => window.removeEventListener('blur', handleBlur);
+    },
+    [pttPressed, stopListening]
+  );
+
+  // Subscribe to the Permissions API for microphone state. iOS Safari
+  // sometimes silently kills recognition on the first denial without firing
+  // onerror, but the Permissions API still reflects the OS-level decision —
+  // so this gives us a deterministic signal independent of the recognition
+  // event stream. Falls back gracefully when the browser doesn't support
+  // querying `microphone` (older Firefox, some embedded webviews).
+  useEffect(
+    () => {
+      const permissions = navigator.permissions;
+      if (!permissions?.query) {
+        log('Permissions API unavailable');
+        return;
+      }
+
+      let cancelled = false;
+      let status: PermissionStatus | null = null;
+      let handle: (() => void) | null = null;
+
+      permissions.query({name: 'microphone' as PermissionName})
+        .then(permStatus => {
+          if (cancelled) return;
+          status = permStatus;
+
+          handle = () => {
+            log('Mic permission state', permStatus.state);
+            if (permStatus.state === 'denied') setMicDenied(true);
+            if (permStatus.state === 'granted') setMicDenied(false);
+          };
+
+          handle();
+          permStatus.addEventListener('change', handle);
+        })
+        .catch(error => log('Mic permissions.query rejected', (error as Error).message));
+
+      return () => {
+        cancelled = true;
+        if (status && handle) status.removeEventListener('change', handle);
+      };
+    },
+    []
   );
 
   // Return Flori's face to the listening rest state once a reply finishes

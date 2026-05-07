@@ -1,4 +1,5 @@
 import {useState, useRef, useCallback, useEffect} from 'react';
+import {log} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +73,16 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   const streamRef = useRef<MediaStream | null>(null);
   const finalRef = useRef('');
   const interimRef = useRef('');
+  // Toggled true on start(), false on stop()/cancel(). start() checks this
+  // after `acquireStream` to bail out if the consumer released during the
+  // (potentially long) permission prompt — otherwise iOS would still spin
+  // up recognition once the user finally responds, leaving the button stuck
+  // in listening state without a real press behind it.
+  const shouldListenRef = useRef(false);
+  // Safari grants per-stream and re-prompts the next time getUserMedia
+  // opens a fresh stream after the previous one was stopped. Caching the
+  // first successful probe avoids the re-prompt on every tap.
+  const safariProbeGrantedRef = useRef(false);
   const onFinalRef = useRef(onFinal);
   const onErrorRef = useRef(onError);
 
@@ -93,14 +104,16 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
     []
   );
 
-  // Chrome's webkitSpeechRecognition won't trigger a mic prompt on its own,
-  // so we open a getUserMedia stream ourselves and keep it alive for the
-  // duration of the listening session — that lets consumers attach an
-  // AnalyserNode for level visualization. Safari manages its own permission
-  // flow inside webkitSpeechRecognition.start() and a parallel getUserMedia
-  // call there conflicts with its internal permission check, so we skip it.
+  // Always call getUserMedia first as a deterministic permission probe — its
+  // rejection is the only reliable denial signal we have on iOS Safari (the
+  // recognition.onerror path silently swallows the first denial of a
+  // session). Chrome keeps the stream open for level visualization; on
+  // Safari/iOS we close it immediately AND remember that the probe
+  // succeeded so subsequent taps skip the probe (otherwise iOS re-prompts
+  // each time a fresh stream opens after the previous was stopped, plus
+  // each probe adds a visible 'initializing' flash).
   const acquireStream = async (): Promise<MediaStream | null | 'denied'> => {
-    if (isSafari()) return null;
+    if (isSafari() && safariProbeGrantedRef.current) return null;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       onErrorRef.current?.('Microphone API not available (needs HTTPS or localhost)');
@@ -108,7 +121,13 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
     }
 
     try {
-      return await navigator.mediaDevices.getUserMedia({audio: true});
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      if (isSafari()) {
+        safariProbeGrantedRef.current = true;
+        for (const track of stream.getTracks()) track.stop();
+        return null;
+      }
+      return stream;
     } catch (error) {
       onErrorRef.current?.(`Microphone denied: ${(error as Error).message}`);
       return 'denied';
@@ -117,6 +136,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
   const stop = useCallback(
     () => {
+      shouldListenRef.current = false;
       const recognition = recognitionRef.current;
       if (recognition) {
         try { recognition.stop(); } catch { /* already stopped */ }
@@ -130,6 +150,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   // so the bad transcript never reaches the LLM.
   const cancel = useCallback(
     () => {
+      shouldListenRef.current = false;
       finalRef.current = '';
       interimRef.current = '';
       const recognition = recognitionRef.current;
@@ -148,8 +169,21 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
         return;
       }
 
+      shouldListenRef.current = true;
+
       const acquired = await acquireStream();
       if (acquired === 'denied') return;
+
+      // The consumer (PTT button) called stop()/cancel() during the await —
+      // typically the iOS permission prompt blurred focus and the page
+      // released the press. Tear down the freshly-acquired stream and bail
+      // out before recognition.start() runs.
+      if (!shouldListenRef.current) {
+        if (acquired) {
+          for (const track of acquired.getTracks()) track.stop();
+        }
+        return;
+      }
 
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch { /* noop */ }
@@ -203,6 +237,9 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       };
 
       recognition.onerror = event => {
+        // Diagnostic: log every event before suppression so we can see the
+        // raw shape iOS Safari is firing for permission denial.
+        log('Recognition onerror', {error: event.error, message: event.message});
         // "no-speech" and "aborted" are expected in push-to-talk flow
         if (event.error === 'no-speech' || event.error === 'aborted') return;
         const raw = event.message || event.error;

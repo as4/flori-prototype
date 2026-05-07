@@ -31,7 +31,10 @@ const SecretInput: React.FC<Props> = ({className, id, placeholder, value, disabl
     value={value}
     placeholder={placeholder}
     disabled={disabled}
-    autoComplete="off"
+    // `one-time-code` is the most reliable hint to iOS Safari that this is
+    // not a credential to save — `off` and the 1Password / LastPass data-*
+    // hints don't reach the system Keychain prompt.
+    autoComplete="one-time-code"
     autoCorrect="off"
     autoCapitalize="off"
     spellCheck={false}

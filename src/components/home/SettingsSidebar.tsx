@@ -1,6 +1,11 @@
 import React, {useId, useState, useEffect} from 'react';
 import SecretInput from './SecretInput';
 import {cn} from '../../utils/cn';
+import {getLogs} from '../../utils/log';
+
+////////////////////////////////////////////////////////////////////////////////
+
+const COPY_FEEDBACK_MS = 1500;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +58,17 @@ const Field: React.FC<FieldProps> = ({label, placeholder, value, disabled, onCha
 const formatLatency = (ms: number | null | undefined) =>
   typeof ms === 'number' ? `${ms}ms` : '—';
 
+const formatLogs = () => getLogs().map(
+  entry => {
+    const time = new Date(entry.time).toISOString().slice(11, 23);
+    const data = entry.data === undefined ?
+      ''
+      :
+      ` ${typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data)}`;
+    return `${time} ${entry.message}${data}`;
+  }
+).join('\n');
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const SettingsSidebar: React.FC<Props> = ({
@@ -68,6 +84,7 @@ const SettingsSidebar: React.FC<Props> = ({
 }) => {
   const [draftTts, setDraftTts] = useState(ttsKey);
   const [draftLlm, setDraftLlm] = useState(llmKey);
+  const [logsCopied, setLogsCopied] = useState(false);
 
   // Adopt saved values when they change from outside (e.g. /dev page edits).
   useEffect(
@@ -97,6 +114,17 @@ const SettingsSidebar: React.FC<Props> = ({
   const handleUpdate = () => {
     onSave?.({ttsKey: draftTts, llmKey: draftLlm});
     onClose?.();
+  };
+
+  const handleCopyLogs = async () => {
+    try {
+      await navigator.clipboard.writeText(formatLogs());
+      setLogsCopied(true);
+      window.setTimeout(() => setLogsCopied(false), COPY_FEEDBACK_MS);
+    } catch {
+      // Clipboard write rejected (e.g. iOS in non-secure context). Silent
+      // fail — the user will know nothing changed.
+    }
   };
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -162,12 +190,26 @@ const SettingsSidebar: React.FC<Props> = ({
         }
       </div>
 
-      {
-        showLatency &&
-        <p className="mt-auto text-sm font-mono text-white/[0.48]">
-          TTFT {formatLatency(ttftMs)} • TTFA {formatLatency(ttfaMs)}
-        </p>
-      }
+      <div className="mt-auto w-full flex flex-col items-start gap-3">
+        <button
+          className={cn(
+            'px-4 py-2 rounded-full border border-white/[0.16]',
+            'text-sm font-semibold text-white/[0.72]',
+            'cursor-pointer'
+          )}
+          type="button"
+          onClick={handleCopyLogs}
+        >
+          {logsCopied ? 'Copied!' : 'Copy logs'}
+        </button>
+
+        {
+          showLatency &&
+          <p className="text-sm font-mono text-white/[0.48]">
+            TTFT {formatLatency(ttftMs)} • TTFA {formatLatency(ttfaMs)}
+          </p>
+        }
+      </div>
     </aside>
   );
 };

@@ -1,56 +1,33 @@
-import React, {useId, useState, useEffect} from 'react';
+import React, {useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type UIEvent} from 'react';
+import _ from 'lodash';
 import SecretInput from './SecretInput';
 import {cn} from '../../utils/cn';
-import {getLogs} from '../../utils/log';
+import {getLogs, subscribeLogs, type DebugEntry} from '../../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const COPY_FEEDBACK_MS = 1500;
+const STICKY_BOTTOM_THRESHOLD_PX = 40;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type FieldProps = {
-  label: string;
-  placeholder?: string;
-  value: string;
-  disabled?: boolean;
-  onChange?: (value: string) => void;
+export type UnlockResult = {ok: true} | {ok: false; error: string};
+
+export type TranscriptTurn = {
+  role: 'user' | 'assistant';
+  text: string;
 };
 
 type Props = {
   open: boolean;
-  ttsKey: string;
-  llmKey: string;
+  unlocked: boolean;
   isConnected?: boolean;
+  transcript?: TranscriptTurn[];
   ttftMs?: number | null;
   ttfaMs?: number | null;
   onClose?: () => void;
-  onSave?: (next: {ttsKey: string; llmKey: string}) => void;
+  onUnlock?: (password: string) => Promise<UnlockResult>;
   onDisconnect?: () => void;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-const Field: React.FC<FieldProps> = ({label, placeholder, value, disabled, onChange}) => {
-  const id = useId();
-
-  return (
-    <div className="w-full flex flex-col items-start gap-4">
-      <label
-        className="text-base font-semibold text-white"
-        htmlFor={id}
-      >
-        {label}
-      </label>
-      <SecretInput
-        id={id}
-        placeholder={placeholder}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-      />
-    </div>
-  );
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,52 +35,147 @@ const Field: React.FC<FieldProps> = ({label, placeholder, value, disabled, onCha
 const formatLatency = (ms: number | null | undefined) =>
   typeof ms === 'number' ? `${ms}ms` : '—';
 
-const formatLogs = () => getLogs().map(
+const formatTime = (timestamp: number) => new Date(timestamp).toISOString().slice(11, 23);
+
+const formatLogEntries = (entries: DebugEntry[]) => _.map(
+  entries,
   entry => {
-    const time = new Date(entry.time).toISOString().slice(11, 23);
     const data = entry.data === undefined ?
       ''
       :
       ` ${typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data)}`;
-    return `${time} ${entry.message}${data}`;
+    return `${formatTime(entry.time)} ${entry.message}${data}`;
   }
 ).join('\n');
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Keeps a scroll container pinned to the bottom while the user is already
+// near the bottom; lets them scroll up to read older content without
+// fighting the auto-scroll. Keyed on `dependency` so each new entry that
+// arrives triggers the check.
+const useStickyBottomScroll = <T,>(dependency: T) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const stickyRef = useRef(true);
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const {scrollTop, scrollHeight, clientHeight} = event.currentTarget;
+    stickyRef.current = scrollHeight - scrollTop - clientHeight < STICKY_BOTTOM_THRESHOLD_PX;
+  };
+
+  useEffect(
+    () => {
+      const container = containerRef.current;
+      if (container && stickyRef.current) container.scrollTop = container.scrollHeight;
+    },
+    [dependency]
+  );
+
+  return {containerRef, handleScroll};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ConversationLog: React.FC<{turns: TranscriptTurn[]}> = ({turns}) => {
+  const {containerRef, handleScroll} = useStickyBottomScroll(turns.length);
+
+  if (turns.length === 0) {
+    return (
+      <p className="text-sm text-white/[0.48]">No turns yet — press and hold to talk.</p>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full max-h-[240px] py-5 pr-2 overflow-y-auto flex flex-col gap-3 fade-edges-y"
+      onScroll={handleScroll}
+    >
+      {
+        _.map(
+          turns,
+          (turn, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-white/[0.48]">
+                {turn.role === 'user' ? 'You' : 'Flori'}
+              </span>
+              <span className="text-sm text-white whitespace-pre-wrap">{turn.text}</span>
+            </div>
+          )
+        )
+      }
+    </div>
+  );
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+const DebugLog: React.FC = () => {
+  const logs = useSyncExternalStore(subscribeLogs, getLogs);
+  const {containerRef, handleScroll} = useStickyBottomScroll(logs.length);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full max-h-[240px] py-5 pr-2 overflow-y-auto flex flex-col gap-1 font-mono text-xs fade-edges-y"
+      onScroll={handleScroll}
+    >
+      {
+        logs.length === 0 ?
+          <span className="text-white/[0.48]">Waiting for events...</span>
+          :
+          _.map(
+            logs,
+            (entry, index) => (
+              <div key={index} className="flex gap-2 items-baseline">
+                <span className="shrink-0 text-white/[0.48]">{formatTime(entry.time)}</span>
+                <span className="text-white/[0.72]">{entry.message}</span>
+                {
+                  entry.data !== undefined &&
+                  <span className="text-[#FF5A7D]/[0.72] break-all">
+                    {typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data)}
+                  </span>
+                }
+              </div>
+            )
+          )
+      }
+    </div>
+  );
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+const SectionTitle: React.FC<{children: React.ReactNode}> = ({children}) => (
+  <h3 className="text-base font-semibold text-white">{children}</h3>
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 const SettingsSidebar: React.FC<Props> = ({
   open,
-  ttsKey,
-  llmKey,
+  unlocked,
   isConnected,
+  transcript,
   ttftMs,
   ttfaMs,
   onClose,
-  onSave,
+  onUnlock,
   onDisconnect,
 }) => {
-  const [draftTts, setDraftTts] = useState(ttsKey);
-  const [draftLlm, setDraftLlm] = useState(llmKey);
+  const passwordId = useId();
+
+  const [password, setPassword] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
   const [logsCopied, setLogsCopied] = useState(false);
 
-  // Adopt saved values when they change from outside (e.g. /dev page edits).
-  useEffect(
-    () => {
-      setDraftTts(ttsKey);
-    },
-    [ttsKey]
-  );
-
-  useEffect(
-    () => {
-      setDraftLlm(llmKey);
-    },
-    [llmKey]
-  );
-
-  const isDirty = draftTts !== ttsKey || draftLlm !== llmKey;
-  const updateActive = isDirty && !isConnected;
+  const unlockActive = !unlocked && password.length > 0 && !unlocking;
   const showLatency = ttftMs != null || ttfaMs != null;
+  // Heavy children (subscribed log feed, transcript scroll container) are
+  // gated on `open && unlocked` so they don't re-render while the user is
+  // mid-conversation with the drawer closed.
+  const showHeavySections = open && unlocked;
 
   //--------------------------------------------------------------------------
   //
@@ -111,14 +183,28 @@ const SettingsSidebar: React.FC<Props> = ({
   //
   //--------------------------------------------------------------------------
 
-  const handleUpdate = () => {
-    onSave?.({ttsKey: draftTts, llmKey: draftLlm});
-    onClose?.();
+  const handleUnlock = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!unlockActive || !onUnlock) return;
+
+    setUnlocking(true);
+    setUnlockError(null);
+
+    const result = await onUnlock(password);
+
+    setUnlocking(false);
+
+    if (result.ok) {
+      setPassword('');
+      onClose?.();
+    } else {
+      setUnlockError(result.error);
+    }
   };
 
   const handleCopyLogs = async () => {
     try {
-      await navigator.clipboard.writeText(formatLogs());
+      await navigator.clipboard.writeText(formatLogEntries(getLogs()));
       setLogsCopied(true);
       window.setTimeout(() => setLogsCopied(false), COPY_FEEDBACK_MS);
     } catch {
@@ -133,7 +219,7 @@ const SettingsSidebar: React.FC<Props> = ({
     <aside
       className={cn(
         'fixed top-0 right-0 h-full w-[400px] p-12 z-[20]',
-        'flex flex-col items-start gap-12',
+        'flex flex-col items-start gap-8',
         'bg-[#291C29]',
         'transition-transform duration-300 ease-out',
         open ? 'translate-x-0' : 'translate-x-full',
@@ -141,54 +227,73 @@ const SettingsSidebar: React.FC<Props> = ({
       )}
       aria-hidden={!open}
     >
-      <Field
-        label="TTS API Key"
-        placeholder="Paste your TTS API key..."
-        value={draftTts}
-        disabled={isConnected}
-        onChange={setDraftTts}
-      />
-      <Field
-        label="LLM API Key"
-        placeholder="Paste your LLM API key..."
-        value={draftLlm}
-        disabled={isConnected}
-        onChange={setDraftLlm}
-      />
+      {
+        !unlocked &&
+        <form
+          className="w-full flex flex-col items-start gap-4"
+          onSubmit={handleUnlock}
+        >
+          <label
+            className="text-base font-semibold text-white"
+            htmlFor={passwordId}
+          >
+            Access code
+          </label>
+          <SecretInput
+            id={passwordId}
+            placeholder="Enter access code..."
+            value={password}
+            onChange={setPassword}
+          />
+          {
+            unlockError &&
+            <p className="text-sm text-[#FF5A7D]">{unlockError}</p>
+          }
+          <button
+            className={cn(
+              'px-6 py-3 rounded-full',
+              'bg-[#FF5A7D] text-base font-semibold text-white',
+              'transition-opacity duration-150',
+              unlockActive ? 'opacity-100 cursor-pointer' : 'opacity-[0.48] cursor-default'
+            )}
+            type="submit"
+            disabled={!unlockActive}
+          >
+            {unlocking ? 'Unlocking...' : 'Unlock'}
+          </button>
+        </form>
+      }
 
-      <div className="w-full flex flex-col items-start gap-4">
+      {
+        unlocked && isConnected &&
         <button
           className={cn(
-            'px-6 py-3 rounded-full',
-            'bg-[#FF5A7D] text-base font-semibold text-white',
-            'transition-opacity duration-150',
-            updateActive ? 'opacity-100 cursor-pointer' : 'opacity-[0.48] cursor-default'
+            'px-6 py-3 rounded-full border-2 border-[#FF5A7D]',
+            'text-base font-semibold text-white',
+            'cursor-pointer'
           )}
           type="button"
-          disabled={!updateActive}
-          onClick={handleUpdate}
+          onClick={onDisconnect}
         >
-          Update
+          Disconnect
         </button>
+      }
 
-        {
-          isConnected &&
-          <>
-            <p className="text-sm text-white/[0.48]">Disconnect to edit keys</p>
-            <button
-              className={cn(
-                'px-6 py-3 rounded-full border-2 border-[#FF5A7D]',
-                'text-base font-semibold text-white',
-                'cursor-pointer'
-              )}
-              type="button"
-              onClick={onDisconnect}
-            >
-              Disconnect
-            </button>
-          </>
-        }
-      </div>
+      {
+        showHeavySections &&
+        <div className="w-full flex flex-col gap-3">
+          <SectionTitle>Conversation</SectionTitle>
+          <ConversationLog turns={transcript ?? []}/>
+        </div>
+      }
+
+      {
+        showHeavySections &&
+        <div className="w-full flex flex-col gap-3">
+          <SectionTitle>Debug</SectionTitle>
+          <DebugLog/>
+        </div>
+      }
 
       <div className="mt-auto w-full flex flex-col items-start gap-3">
         <button

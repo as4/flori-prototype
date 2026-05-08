@@ -23,6 +23,15 @@
 .loader-bar:nth-child(5) { animation-delay: 0.60s; }
 .loader-bar:nth-child(6) { animation-delay: 0.75s; }
 
+/* Soft fade at the top + bottom of a vertical scroll area so content
+ * dissolves into the panel instead of clipping abruptly. Used by the
+ * conversation + debug log scrollers in the settings sidebar.
+ */
+.fade-edges-y {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
+}
+
 @keyframes halo {
   0%, 100% {
     transform: scale(0.92);

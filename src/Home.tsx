@@ -3,7 +3,9 @@ import RiveCharacter from './components/RiveCharacter';
 import Background, {pickBgVariant} from './components/home/Background';
 import Header from './components/home/Header';
 import Footer from './components/home/Footer';
-import SettingsSidebar from './components/home/SettingsSidebar';
+import SettingsSidebar, {type UnlockResult, type TranscriptTurn} from './components/home/SettingsSidebar';
+import {unlockKeys} from './api/unlock';
+import {scramble} from './api/scramble';
 import type {PttState} from './components/home/PttButton';
 import useLocalStorage from './hooks/useLocalStorage';
 import useEmotionQueue from './hooks/useEmotionQueue';
@@ -33,8 +35,11 @@ const MIC_DENIED_PATTERN = /denied|not-allowed|service-not-allowed|service permi
 const Home = () => {
   const variant = useMemo(pickBgVariant, []);
 
-  const [apiKey, setApiKey] = useLocalStorage('flori-api-key');
-  const [llmKey, setLlmKey] = useLocalStorage('flori-google-ai-key');
+  // Password persists across reloads; the actual TTS/LLM keys live only in
+  // memory, fetched via the password on mount.
+  const [storedPassword, setStoredPassword] = useLocalStorage('flori-password');
+  const [apiKey, setApiKey] = useState('');
+  const [llmKey, setLlmKey] = useState('');
 
   const [characterReady, setCharacterReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -43,6 +48,7 @@ const Home = () => {
   const [muted, setMuted] = useState(false);
   const [ttftMs, setTtftMs] = useState<number | null>(null);
   const [ttfaMs, setTtfaMs] = useState<number | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
 
   const turnStartTimeRef = useRef<number | null>(null);
   const ttftLoggedRef = useRef(false);
@@ -104,7 +110,10 @@ const Home = () => {
     (fullText: string, rawText: string) => {
       const reply = fullText.trim();
       if (!reply) return;
-      log('LLM reply', rawText.trim() || reply);
+
+      const rawReply = rawText.trim() || reply;
+      setTranscript(previous => [...previous, {role: 'assistant', text: rawReply}]);
+      log('LLM reply', rawReply);
     },
     []
   );
@@ -148,6 +157,7 @@ const Home = () => {
     (sttTranscript: string) => {
       log('Heard', sttTranscript);
       log('Sending to LLM');
+      setTranscript(previous => [...previous, {role: 'user', text: sttTranscript}]);
       turnStartTimeRef.current = Date.now();
       ttftLoggedRef.current = false;
       setTtftMs(null);
@@ -273,12 +283,22 @@ const Home = () => {
     [stopListening]
   );
 
-  const handleSave = useCallback(
-    ({ttsKey, llmKey}: {ttsKey: string; llmKey: string}) => {
-      setApiKey(ttsKey);
-      setLlmKey(llmKey);
+  const handleUnlock = useCallback(
+    async (password: string): Promise<UnlockResult> => {
+      const scrambled = scramble(password);
+      const result = await unlockKeys(scrambled);
+
+      if (result.ok) {
+        setApiKey(result.ttsKey);
+        setLlmKey(result.llmKey);
+        setStoredPassword(scrambled);
+        return {ok: true};
+      }
+
+      log('Unlock failed', result.error);
+      return {ok: false, error: result.error};
     },
-    [setApiKey, setLlmKey]
+    [setStoredPassword]
   );
 
   //--------------------------------------------------------------------------
@@ -286,6 +306,37 @@ const Home = () => {
   //  Effects
   //
   //--------------------------------------------------------------------------
+
+  // Auto-unlock on mount: if we already have a working password from a
+  // previous session, fetch fresh keys for this tab. On 401 (password
+  // rotated server-side) we clear the stored password so the sidebar shows
+  // the input again.
+  useEffect(
+    () => {
+      if (!storedPassword || apiKey) return;
+
+      let cancelled = false;
+
+      void (async () => {
+        const result = await unlockKeys(storedPassword);
+        if (cancelled) return;
+
+        if (result.ok) {
+          setApiKey(result.ttsKey);
+          setLlmKey(result.llmKey);
+          return;
+        }
+
+        log('Auto-unlock failed', result.error);
+        setStoredPassword('');
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [storedPassword, apiKey, setStoredPassword]
+  );
 
   // Swap the html background and Mobile Safari URL-bar tint to the variant's
   // sky color while this page is mounted; restore on unmount so the dev page
@@ -452,13 +503,13 @@ const Home = () => {
 
       <SettingsSidebar
         open={settingsOpen}
-        ttsKey={apiKey}
-        llmKey={llmKey}
+        unlocked={hasKeys}
         isConnected={isConnected}
+        transcript={transcript}
         ttftMs={ttftMs}
         ttfaMs={ttfaMs}
         onClose={closeSettings}
-        onSave={handleSave}
+        onUnlock={handleUnlock}
         onDisconnect={disconnect}
       />
     </>

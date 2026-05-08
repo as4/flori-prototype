@@ -1,0 +1,6 @@
+# Copy to .dev.vars and fill in real values for local Pages Functions dev.
+# Read by `wrangler pages dev` automatically.
+
+FLORI_PASSWORD=
+INWORLD_API_KEY=
+GOOGLE_AI_KEY=

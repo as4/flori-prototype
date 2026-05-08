@@ -26,12 +26,17 @@ const Header: React.FC<Props> = ({muted, settingsOpen, onMuteClick, onSettingsCl
       <Pill
         className={cn(
           'w-12 h-12 flex items-center justify-center',
+          'transition-colors duration-300',
           muted && 'from-[#FF5A7D] to-[#FF5A7D] border-transparent'
         )}
         onClick={onMuteClick}
       >
         <IconMute
-          className={cn('w-6 h-6', muted && '[&_path]:fill-white')}
+          className={cn(
+            'w-6 h-6',
+            '[&_path]:transition-colors [&_path]:duration-300',
+            muted && '[&_path]:fill-white'
+          )}
           title={muted ? 'Unmute' : 'Mute'}
         />
       </Pill>

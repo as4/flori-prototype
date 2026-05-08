@@ -25,7 +25,7 @@ const Footer: React.FC<Props> = ({
   onPressEnd,
 }) => {
   const hint =
-    pttState === 'no-keys' ? 'Enter keys in settings first' :
+    pttState === 'no-keys' ? 'Enter access code in settings' :
     pttState === 'denied' ? 'Allow mic to speak' :
     null;
 

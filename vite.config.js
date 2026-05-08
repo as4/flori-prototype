@@ -20,5 +20,11 @@ export default defineConfig({
   ],
   server: {
     host: true,
+    proxy: {
+      // Forward /api/* to wrangler pages dev (run via `npm run dev:functions`)
+      // so the password unlock endpoint works under the vite dev server.
+      // Production: Cloudflare Pages routes /api/* to the Function natively.
+      '/api': 'http://localhost:8788',
+    },
   },
 });

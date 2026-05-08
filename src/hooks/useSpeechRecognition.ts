@@ -1,10 +1,10 @@
-import {useState, useRef, useCallback, useEffect} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type SpeechRecognitionResult = {
   isFinal: boolean;
-  0: {transcript: string};
+  0: { transcript: string };
 };
 
 type SpeechRecognitionEvent = {
@@ -72,6 +72,11 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   const streamRef = useRef<MediaStream | null>(null);
   const finalRef = useRef('');
   const interimRef = useRef('');
+  // True from start() until stop()/cancel(). Read inside recognition.onstart
+  // to bail out when the consumer released during the permission prompt
+  // (recognition.start() resolves anyway after permission grants, even if
+  // we already called recognition.stop()).
+  const shouldListenRef = useRef(false);
   const onFinalRef = useRef(onFinal);
   const onErrorRef = useRef(onError);
 
@@ -117,9 +122,13 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
   const stop = useCallback(
     () => {
+      shouldListenRef.current = false;
       const recognition = recognitionRef.current;
       if (recognition) {
-        try { recognition.stop(); } catch { /* already stopped */ }
+        try {
+          recognition.stop();
+        } catch { /* already stopped */
+        }
       }
     },
     []
@@ -130,11 +139,17 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   // so the bad transcript never reaches the LLM.
   const cancel = useCallback(
     () => {
+      shouldListenRef.current = false;
       finalRef.current = '';
       interimRef.current = '';
+
       const recognition = recognitionRef.current;
+
       if (recognition) {
-        try { recognition.abort(); } catch { /* already gone */ }
+        try {
+          recognition.abort();
+        } catch { /* already gone */
+        }
       }
     },
     []
@@ -143,16 +158,26 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   const start = useCallback(
     async () => {
       const Ctor = getCtor();
+
       if (!Ctor) {
         onErrorRef.current?.('Speech recognition not supported in this browser');
         return;
       }
 
+      shouldListenRef.current = true;
+
       const acquired = await acquireStream();
-      if (acquired === 'denied') return;
+
+      if (acquired === 'denied') {
+        return;
+      }
 
       if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch { /* noop */ }
+        try {
+          recognitionRef.current.abort();
+        } catch { /* noop */
+        }
+
         recognitionRef.current = null;
       }
 
@@ -179,14 +204,28 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       setInterim('');
 
       recognition.onstart = () => {
+        if (!shouldListenRef.current) {
+          // Consumer released before recognition spun up. abort() instead
+          // of stop() because Chrome's stop() is graceful and may keep the
+          // mic open until current results flush; abort() terminates now.
+          try {
+            recognition.abort();
+          } catch { /* already gone */
+          }
+
+          return;
+        }
+
         setIsListening(true);
       };
 
       recognition.onresult = event => {
         let interimText = '';
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           const text = result[0].transcript;
+
           if (result.isFinal) {
             // Safari (and Chrome) continuous mode emits each post-pause
             // utterance as a fresh final without a leading space, producing
@@ -197,6 +236,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
             interimText += text;
           }
         }
+
         interimRef.current = interimText;
         setTranscript(finalRef.current);
         setInterim(interimText);
@@ -204,27 +244,43 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
       recognition.onerror = event => {
         // "no-speech" and "aborted" are expected in push-to-talk flow
-        if (event.error === 'no-speech' || event.error === 'aborted') return;
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+          return;
+        }
+
         const raw = event.message || event.error;
         const isServicePermission = /service-not-allowed|service permission/i.test(raw);
+
         onErrorRef.current?.(isServicePermission ? `${raw}. ${SERVICE_PERMISSION_HINT}` : raw);
       };
 
       recognition.onend = () => {
-        setIsListening(false);
-        setInterim('');
+        const isCurrent = recognitionRef.current === recognition;
         // Combine final + interim because the user releases the PTT button
         // mid-utterance — the tail (most recent words) is often still in
         // interim when stop() fires. Sending only finalRef would clip it.
         const combined = `${finalRef.current} ${interimRef.current}`.replace(/\s+/g, ' ').trim();
+        // Only mutate shared state if this onend is for the active session.
+        // Otherwise a stale recognition's late onend would clobber the new
+        // session's listening state and wipe out the recognitionRef.
+
+        if (!isCurrent) {
+          return;
+        }
+
+        setIsListening(false);
+        setInterim('');
+
         if (combined) {
           onFinalRef.current?.(combined);
         }
+
         recognitionRef.current = null;
         releaseStream();
       };
 
       recognitionRef.current = recognition;
+
       try {
         recognition.start();
       } catch (error) {
@@ -237,8 +293,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   useEffect(
     () => () => {
       if (recognitionRef.current) {
-        try { recognitionRef.current.abort(); } catch { /* noop */ }
+        try {
+          recognitionRef.current.abort();
+        } catch { /* noop */
+        }
       }
+
       releaseStream();
     },
     [releaseStream]

@@ -1,26 +1,20 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import RiveCharacter from './components/RiveCharacter';
-import Background, {pickBgVariant} from './components/home/Background';
-import Header from './components/home/Header';
-import Footer from './components/home/Footer';
-import SettingsSidebar, {type UnlockResult, type TranscriptTurn} from './components/home/SettingsSidebar';
-import {unlockKeys} from './api/unlock';
 import {scramble} from './api/scramble';
+import {unlockKeys} from './api/unlock';
+import Background, {pickBgVariant} from './components/home/Background';
+import Footer from './components/home/Footer';
+import Header from './components/home/Header';
 import type {PttState} from './components/home/PttButton';
-import useLocalStorage from './hooks/useLocalStorage';
+import SettingsSidebar, {type TranscriptTurn, type UnlockResult} from './components/home/SettingsSidebar';
+import RiveCharacter from './components/RiveCharacter';
+import type {EmotionName} from './emotions';
+import {DEFAULT_EMOTION_PROMPT, DEFAULT_SYSTEM_PROMPT, HOME_LLM_MODEL, HOME_TTS_MODEL, HOME_TTS_VOICE,} from './home-config';
 import useEmotionQueue from './hooks/useEmotionQueue';
 import useInworldTTS from './hooks/useInworldTTS';
 import useLLMChat from './hooks/useLLMChat';
+import useLocalStorage from './hooks/useLocalStorage';
 import useSpeechRecognition from './hooks/useSpeechRecognition';
 import {createGoogleAdapter} from './llm/google/adapter';
-import type {EmotionName} from './emotions';
-import {
-  DEFAULT_SYSTEM_PROMPT,
-  DEFAULT_EMOTION_PROMPT,
-  HOME_TTS_MODEL,
-  HOME_TTS_VOICE,
-  HOME_LLM_MODEL,
-} from './home-config';
 import {cn} from './utils/cn';
 import {log} from './utils/log';
 import './Home.css';
@@ -95,10 +89,12 @@ const Home = () => {
   const handleSentence = useCallback(
     (sentence: string, emotion?: EmotionName) => {
       if (isListeningRef.current) return;
+
       if (!isConnected) {
         log('Not connected — skipping sentence');
         return;
       }
+
       enqueueEmotion(emotion);
       log('Sentence → TTS', sentence);
       streamSentence(sentence);
@@ -150,8 +146,8 @@ const Home = () => {
   // the user should see "processing".
   const status =
     ttsStatus === 'speaking' ? 'speaking' :
-    ttsStatus === 'connected' && isStreaming ? 'processing' :
-    ttsStatus;
+      ttsStatus === 'connected' && isStreaming ? 'processing' :
+        ttsStatus;
 
   const handleSttFinal = useCallback(
     (sttTranscript: string) => {
@@ -205,13 +201,13 @@ const Home = () => {
   // initializing pulse so the press feels acknowledged.
   const pttState: PttState =
     !hasKeys ? 'no-keys' :
-    micDenied ? 'denied' :
-    isListening ? 'listening' :
-    pttPressed ? 'initializing' :
-    isStreaming ? 'thinking' :
-    (status === 'speaking' || status === 'processing') ? 'speaking' :
-    ttsStatus === 'connecting' ? 'initializing' :
-    'idle';
+      micDenied ? 'denied' :
+        isListening ? 'listening' :
+          pttPressed ? 'initializing' :
+            isStreaming ? 'thinking' :
+              (status === 'speaking' || status === 'processing') ? 'speaking' :
+                ttsStatus === 'connecting' ? 'initializing' :
+                  'idle';
 
   //--------------------------------------------------------------------------
   //
@@ -254,6 +250,7 @@ const Home = () => {
       beginTurn();
       resetEmotionQueue();
       ensureAudioReady();
+
       // Auto-connect on first press. fire-and-forget; useInworldTTS owns the
       // socket lifecycle.
       // Auto-connect on first press. fire-and-forget; useInworldTTS owns the
@@ -261,6 +258,7 @@ const Home = () => {
       if (ttsStatus === 'disconnected' || ttsStatus === 'error') {
         connect();
       }
+
       startListening();
     },
     [
@@ -357,6 +355,28 @@ const Home = () => {
       };
     },
     [variant.skyColor]
+  );
+
+  // Safari (desktop + iOS) blurs the window when the mic permission
+  // dialog steals focus, so pointerup never reaches our button. Treat
+  // blur during a press as an implicit release so the button doesn't
+  // hang in listening state once permission grants. Chrome's prompt is
+  // a popover that doesn't blur the page; that case is handled by
+  // `shouldListenRef` in `useSpeechRecognition` (it bails the recognition
+  // when stop() ran before onstart fired).
+  useEffect(
+    () => {
+      if (!pttPressed) return;
+
+      const handleBlur = () => {
+        setPttPressed(false);
+        stopListening();
+      };
+
+      window.addEventListener('blur', handleBlur);
+      return () => window.removeEventListener('blur', handleBlur);
+    },
+    [pttPressed, stopListening]
   );
 
   // Close settings on Escape. Listener attached only while open so it doesn't

@@ -1,4 +1,5 @@
-import {useState, useRef, useCallback} from 'react';
+import _ from 'lodash';
+import {useCallback, useRef, useState} from 'react';
 import {log} from '../utils/log';
 import type {VisemeEntry} from './useAudioPlayback';
 
@@ -118,7 +119,22 @@ const useInworldSocket = ({apiKey, voiceId, modelId, onSegment}: UseInworldSocke
                 }
               }
             }
-            const joinedWords = wordAlignment?.words?.join(' ').trim();
+
+            // InWorld's word array contains empty-string entries and
+            // separate punctuation tokens (",", ".", etc.). Build the
+            // string with no space before punctuation so the log reads
+            // naturally.
+            const joinedWords = _.reduce(
+              wordAlignment?.words,
+              (acc, word) => {
+                if (!word) return acc;
+
+                const needsSpace = acc.length > 0 && !/^[,.!?;:]$/.test(word);
+                return acc + (needsSpace ? ' ' : '') + word;
+              },
+              ''
+            );
+
             if (joinedWords) {
               log('Words received', joinedWords);
             }

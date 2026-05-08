@@ -3,6 +3,7 @@ import _ from 'lodash';
 import SecretInput from './SecretInput';
 import {cn} from '../../utils/cn';
 import {getLogs, subscribeLogs, type DebugEntry} from '../../utils/log';
+import IconCloseSidebar from '../../assets/icon-close-sidebar.svg?react';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,8 +219,13 @@ const SettingsSidebar: React.FC<Props> = ({
   return (
     <aside
       className={cn(
-        'fixed top-0 right-0 h-full w-[400px] p-12 z-[20]',
-        'flex flex-col items-start gap-8',
+        // Width caps at 400px but shrinks to fit narrow phones (where 400
+        // would overflow the viewport).
+        'fixed top-0 right-0 h-full w-[min(100vw,400px)] z-[20] overflow-hidden',
+        // Mobile: round the sidebar's left corners to match the desktop
+        // overlay frame's radius. Desktop has a separate rounded window in
+        // the stage area, so we cancel the rounding at `sm:` and up.
+        'rounded-l-[40px] sm:rounded-l-none',
         'bg-[#291C29]',
         'transition-transform duration-300 ease-out',
         open ? 'translate-x-0' : 'translate-x-full',
@@ -227,6 +233,12 @@ const SettingsSidebar: React.FC<Props> = ({
       )}
       aria-hidden={!open}
     >
+      {/* Inner scroll container — owns the padding so absolutely-positioned
+        * siblings (the chevron) stay anchored to the aside and don't
+        * scroll with content. Mobile halves the top/right padding (48 →
+        * 24) so the form has more breathing room near the close handle.
+        */}
+      <div className="absolute inset-0 overflow-y-auto p-12 max-sm:pt-6 max-sm:pr-6 flex flex-col items-start gap-8">
       {
         !unlocked &&
         <form
@@ -315,6 +327,19 @@ const SettingsSidebar: React.FC<Props> = ({
           </p>
         }
       </div>
+      </div>
+
+      {/* Mobile close handle — anchored to the aside (not the scroll
+        * container) so it stays put while content scrolls underneath.
+        */}
+      <button
+        className="absolute top-1/2 -translate-y-1/2 left-2 w-8 h-12 flex items-center justify-center cursor-pointer text-white sm:hidden"
+        type="button"
+        aria-label="Close settings"
+        onClick={onClose}
+      >
+        <IconCloseSidebar className="w-4 h-4 [&_path]:stroke-white"/>
+      </button>
     </aside>
   );
 };

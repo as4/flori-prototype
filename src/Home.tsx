@@ -430,64 +430,100 @@ const Home = () => {
     <>
       <div
         className={cn(
-          'home fixed inset-0 overflow-hidden font-sans',
+          'home fixed inset-0 overflow-hidden font-sans bg-[#291C29]',
           'transition-transform duration-300 ease-out',
-          settingsOpen && '-translate-x-[400px]'
+          // Mobile shifts the whole frame; desktop stays put — the inner
+          // stage narrows and the frame overlay grows in place instead.
+          settingsOpen && '-translate-x-[min(100vw,400px)] sm:translate-x-0'
         )}
-        style={{backgroundColor: variant.skyColor}}
       >
-        <Background variant={variant}/>
-        <Header
-          muted={muted}
-          settingsOpen={settingsOpen}
-          onMuteClick={toggleMute}
-          onSettingsClick={toggleSettings}
-        />
+        {/* Stage — sky-coloured content layer. Stays pinned to viewport
+          * edges on top/left/bottom; only the right narrows by 400px when
+          * the sidebar opens. Content inside (Background/Header/Flori/
+          * Footer) keeps its full-bleed positioning — the dark frame is
+          * painted on top by the overlay below, not by shrinking this
+          * container.
+          */}
+        <div
+          className={cn(
+            'absolute top-0 bottom-0 left-0',
+            'transition-[right] duration-300 ease-out',
+            settingsOpen ? 'right-0 sm:right-[400px]' : 'right-0'
+          )}
+          style={{backgroundColor: variant.skyColor}}
+        >
+          <Background variant={variant}/>
+          <Header
+            muted={muted}
+            settingsOpen={settingsOpen}
+            onMuteClick={toggleMute}
+            onSettingsClick={toggleSettings}
+          />
 
-        <div className="absolute inset-0 pb-20 z-0 flex items-center justify-center">
-          <div className="relative translate-y-[34px]">
-            {
-              // Soft elliptical shadow under Flori. Painted before the canvas
-              // so the character paints on top. `bottom-[108px]` sits the
-              // shadow just below Flori's feet inside the 512×512 home canvas.
-              // Fades in and scales 95% → 100% so it reads like Flori is
-              // landing onto the ground.
-              variant.shadowColor &&
+          <div className="absolute inset-0 pb-20 z-0 flex items-center justify-center">
+            <div className="relative translate-y-[34px]">
+              {
+                // Soft elliptical shadow under Flori. Painted before the
+                // canvas so the character paints on top. `bottom-[108px]`
+                // sits the shadow just below Flori's feet inside the
+                // 512×512 home canvas. Fades in and scales 95% → 100% so
+                // it reads like Flori is landing onto the ground.
+                variant.shadowColor &&
+                <div
+                  className="absolute bottom-[108px] left-1/2 w-[160px] h-[36px] rounded-[50%] transition-transform duration-1000 ease-out"
+                  style={{
+                    backgroundColor: variant.shadowColor,
+                    opacity: characterReady ? 1 : 0,
+                    transform: `translateX(-50%) scale(${characterReady ? 1 : 0.85})`,
+                  }}
+                />
+              }
+
+              {/* Flori herself: fades in and lands from -10px above. */}
               <div
-                className="absolute bottom-[108px] left-1/2 w-[160px] h-[36px] rounded-[50%] transition-transform duration-1000 ease-out"
+                className="transition-[opacity,transform] duration-1000 ease-out"
                 style={{
-                  backgroundColor: variant.shadowColor,
                   opacity: characterReady ? 1 : 0,
-                  transform: `translateX(-50%) scale(${characterReady ? 1 : 0.85})`,
+                  transform: `translateY(${characterReady ? 0 : -10}px)`,
                 }}
-              />
-            }
-
-            {/* Flori herself: fades in and lands from -10px above. */}
-            <div
-              className="transition-[opacity,transform] duration-1000 ease-out"
-              style={{
-                opacity: characterReady ? 1 : 0,
-                transform: `translateY(${characterReady ? 0 : -10}px)`,
-              }}
-            >
-              <RiveCharacter
-                currentViseme={currentViseme}
-                currentEmotion={currentEmotion}
-                onReady={handleCharacterReady}
-              />
+              >
+                <RiveCharacter
+                  currentViseme={currentViseme}
+                  currentEmotion={currentEmotion}
+                  onReady={handleCharacterReady}
+                />
+              </div>
             </div>
           </div>
+
+          <Footer
+            hintColor={variant.hintColor}
+            pttState={pttState}
+            stream={stream}
+            interim={interim}
+            isListening={isListening}
+            onPressStart={handlePttStart}
+            onPressEnd={handlePttEnd}
+          />
         </div>
 
-        <Footer
-          hintColor={variant.hintColor}
-          pttState={pttState}
-          stream={stream}
-          interim={interim}
-          isListening={isListening}
-          onPressStart={handlePttStart}
-          onPressEnd={handlePttEnd}
+        {/* Frame overlay — a rounded transparent "window" with a massive
+          * dark box-shadow extending past its bounds. The `.home`'s
+          * `overflow-hidden` clips the shadow so we only see dark in the
+          * gap between the window's edges and the viewport. Window
+          * geometry animates 0 → 8px inset on top/left/bottom + 0 → 400px
+          * on the right + 0 → 40px corner radius. Stage content underneath
+          * keeps its full-bleed layout — no jitter when frame appears.
+          */}
+        <div
+          className={cn(
+            'absolute pointer-events-none shadow-[0_0_0_9999px_#291C29]',
+            'transition-[top,right,bottom,left,border-radius] duration-300 ease-out',
+            settingsOpen ?
+              'top-0 right-0 bottom-0 left-0 sm:top-2 sm:right-[400px] sm:bottom-2 sm:left-2 sm:rounded-[40px]'
+              :
+              'top-0 right-0 bottom-0 left-0'
+          )}
         />
       </div>
 

@@ -1,4 +1,4 @@
-import React, {useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type UIEvent} from 'react';
+import React, {useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type TouchEvent, type UIEvent} from 'react';
 import _ from 'lodash';
 import SecretInput from './SecretInput';
 import {cn} from '../../utils/cn';
@@ -9,6 +9,7 @@ import IconCloseSidebar from '../../assets/icon-close-sidebar.svg?react';
 
 const COPY_FEEDBACK_MS = 1500;
 const STICKY_BOTTOM_THRESHOLD_PX = 40;
+const SWIPE_CLOSE_THRESHOLD_PX = 80;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,9 @@ type Props = {
   onClose?: () => void;
   onUnlock?: (password: string) => Promise<UnlockResult>;
   onDisconnect?: () => void;
+  // Fired during a swipe-to-close drag with the current rightward offset
+  // (0 on touchend / release) so the parent can move the stage in lockstep.
+  onSwipeOffset?: (dx: number) => void;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +167,7 @@ const SettingsSidebar: React.FC<Props> = ({
   onClose,
   onUnlock,
   onDisconnect,
+  onSwipeOffset,
 }) => {
   const passwordId = useId();
 
@@ -203,6 +208,96 @@ const SettingsSidebar: React.FC<Props> = ({
     }
   };
 
+  // iOS-style swipe-right-to-close. The drawer follows the finger live
+  // while dragging horizontally, then snaps closed if released past the
+  // threshold or snaps back otherwise. We commit to "horizontal" only
+  // once movement clearly exceeds the vertical axis so internal scrolling
+  // (conversation / debug logs) isn't hijacked. `touch-pan-y` on the
+  // aside lets the browser handle vertical scroll natively while we own
+  // the horizontal axis.
+  const asideRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    direction: 'horizontal' | 'vertical' | null;
+    lastDx: number;
+  } | null>(null);
+
+  const handleTouchStart = (event: TouchEvent) => {
+    if (!open || event.touches.length !== 1) return;
+    dragRef.current = {
+      startX: event.touches[0].clientX,
+      startY: event.touches[0].clientY,
+      direction: null,
+      lastDx: 0,
+    };
+  };
+
+  // Stable ref for the callback so the touchmove listener (attached once
+  // via useEffect) always sees the latest function without re-attaching.
+  const onSwipeOffsetRef = useRef(onSwipeOffset);
+  onSwipeOffsetRef.current = onSwipeOffset;
+
+  // Touchmove must call preventDefault() once we commit to a horizontal
+  // swipe so the browser doesn't simultaneously scroll the inner content.
+  // React's onTouchMove is passive by default and can't preventDefault,
+  // so we attach the listener manually with `passive: false`.
+  useEffect(
+    () => {
+      const aside = asideRef.current;
+      if (!aside) return;
+
+      const handler = (event: globalThis.TouchEvent) => {
+        const drag = dragRef.current;
+        if (!drag) return;
+
+        const dx = event.touches[0].clientX - drag.startX;
+        const dy = event.touches[0].clientY - drag.startY;
+
+        if (drag.direction === null) {
+          if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+          drag.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+        }
+
+        if (drag.direction !== 'horizontal') return;
+
+        event.preventDefault();
+
+        drag.lastDx = Math.max(0, dx);
+        aside.style.transition = 'none';
+        // Tailwind v4's translate-x utilities write to the `translate`
+        // property; override the same property so they don't stack.
+        aside.style.translate = `${drag.lastDx}px 0`;
+        onSwipeOffsetRef.current?.(drag.lastDx);
+      };
+
+      aside.addEventListener('touchmove', handler, {passive: false});
+      return () => aside.removeEventListener('touchmove', handler);
+    },
+    []
+  );
+
+  const handleTouchEnd = (event: TouchEvent) => {
+    const drag = dragRef.current;
+    const aside = asideRef.current;
+    dragRef.current = null;
+
+    if (!drag || drag.direction !== 'horizontal' || !aside) return;
+
+    // Clear inline overrides so the Tailwind transition class takes over
+    // and the drawer animates to its final state (closed or snap back).
+    aside.style.translate = '';
+    aside.style.transition = '';
+    onSwipeOffset?.(0);
+
+    const touch = event.changedTouches[0];
+    const dx = touch ? touch.clientX - drag.startX : drag.lastDx;
+
+    if (dx > SWIPE_CLOSE_THRESHOLD_PX) {
+      onClose?.();
+    }
+  };
+
   const handleCopyLogs = async () => {
     try {
       await navigator.clipboard.writeText(formatLogEntries(getLogs()));
@@ -218,10 +313,15 @@ const SettingsSidebar: React.FC<Props> = ({
 
   return (
     <aside
+      ref={asideRef}
       className={cn(
         // Width caps at 400px but shrinks to fit narrow phones (where 400
         // would overflow the viewport).
         'fixed top-0 right-0 h-full w-[min(100vw,400px)] z-[20] overflow-hidden',
+        // touch-pan-y lets the browser handle vertical scroll natively
+        // (so internal scrollers keep working) while leaving the
+        // horizontal axis to our swipe-to-close handler.
+        'touch-pan-y',
         // Mobile: round the sidebar's left corners to match the desktop
         // overlay frame's radius. Desktop has a separate rounded window in
         // the stage area, so we cancel the rounding at `sm:` and up.
@@ -232,6 +332,8 @@ const SettingsSidebar: React.FC<Props> = ({
         !open && 'pointer-events-none'
       )}
       aria-hidden={!open}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Inner scroll container — owns the padding so absolutely-positioned
         * siblings (the chevron) stay anchored to the aside and don't

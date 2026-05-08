@@ -48,6 +48,7 @@ const Home = () => {
   const ttftLoggedRef = useRef(false);
   const isListeningRef = useRef(false);
   const wasSpeakingRef = useRef(false);
+  const homeRef = useRef<HTMLDivElement | null>(null);
 
   const adapter = useMemo(
     () => createGoogleAdapter(llmKey, HOME_LLM_MODEL),
@@ -232,6 +233,34 @@ const Home = () => {
 
   const toggleMute = useCallback(
     () => setMuted(prev => !prev),
+    []
+  );
+
+  // Move the stage in lockstep with the sidebar during a swipe-to-close
+  // drag so the two feel like one continuous panel. Mobile only: on `sm:`
+  // and above, the stage doesn't translate at all (the frame overlay
+  // handles the open/close visual), so dragging it would look wrong.
+  const handleSidebarSwipe = useCallback(
+    (dx: number) => {
+      const home = homeRef.current;
+      if (!home) return;
+
+      const isMobile = window.matchMedia('(max-width: 639px)').matches;
+      if (!isMobile) return;
+
+      if (dx === 0) {
+        home.style.transition = '';
+        home.style.translate = '';
+        return;
+      }
+
+      const shift = Math.min(window.innerWidth, 400);
+      home.style.transition = 'none';
+      // Tailwind v4's `-translate-x-*` writes to the `translate` CSS
+      // property, not `transform`. Override the same property so they
+      // don't stack.
+      home.style.translate = `${dx - shift}px 0`;
+    },
     []
   );
 
@@ -449,6 +478,7 @@ const Home = () => {
   return (
     <>
       <div
+        ref={homeRef}
         className={cn(
           'home fixed inset-0 overflow-hidden font-sans bg-[#291C29]',
           'transition-transform duration-300 ease-out',
@@ -567,6 +597,7 @@ const Home = () => {
         onClose={closeSettings}
         onUnlock={handleUnlock}
         onDisconnect={disconnect}
+        onSwipeOffset={handleSidebarSwipe}
       />
     </>
   );

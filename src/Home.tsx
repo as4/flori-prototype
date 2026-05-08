@@ -367,46 +367,31 @@ const Home = () => {
 
   // Swap the html background and Mobile Safari URL-bar tint to the variant's
   // sky color while this page is mounted; restore on unmount so the dev page
-  // keeps its dark theme.
+  // keeps its dark theme. Also force `color-scheme: light` because Safari on
+  // dark-mode iOS otherwise ignores light theme-colors as a "wrong scheme"
+  // mismatch — the global :root sets `color-scheme: dark` for /dev's
+  // benefit.
   useEffect(
     () => {
       const html = document.documentElement;
       const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
       const prevHtmlBg = html.style.backgroundColor;
+      const prevColorScheme = html.style.colorScheme;
       const prevThemeColor = meta?.getAttribute('content') ?? null;
 
       html.style.backgroundColor = variant.skyColor;
+      html.style.colorScheme = 'light';
       meta?.setAttribute('content', variant.skyColor);
 
       return () => {
         html.style.backgroundColor = prevHtmlBg;
+        html.style.colorScheme = prevColorScheme;
         if (prevThemeColor !== null) meta?.setAttribute('content', prevThemeColor);
       };
     },
     [variant.skyColor]
   );
 
-  // Safari (desktop + iOS) blurs the window when the mic permission
-  // dialog steals focus, so pointerup never reaches our button. Treat
-  // blur during a press as an implicit release so the button doesn't
-  // hang in listening state once permission grants. Chrome's prompt is
-  // a popover that doesn't blur the page; that case is handled by
-  // `shouldListenRef` in `useSpeechRecognition` (it bails the recognition
-  // when stop() ran before onstart fired).
-  useEffect(
-    () => {
-      if (!pttPressed) return;
-
-      const handleBlur = () => {
-        setPttPressed(false);
-        stopListening();
-      };
-
-      window.addEventListener('blur', handleBlur);
-      return () => window.removeEventListener('blur', handleBlur);
-    },
-    [pttPressed, stopListening]
-  );
 
   // Close settings on Escape. Listener attached only while open so it doesn't
   // sit on the window forever.
@@ -496,7 +481,7 @@ const Home = () => {
           */}
         <div
           className={cn(
-            'absolute top-0 bottom-0 left-0',
+            'absolute top-0 bottom-0 left-0 min-h-[550px]',
             'transition-[right] duration-300 ease-out',
             settingsOpen ? 'right-0 sm:right-[400px]' : 'right-0'
           )}

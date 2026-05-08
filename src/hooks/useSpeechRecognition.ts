@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
+import {log} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +123,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
   const stop = useCallback(
     () => {
+      log('STT stop()', {hadRecognition: Boolean(recognitionRef.current)});
       shouldListenRef.current = false;
       const recognition = recognitionRef.current;
       if (recognition) {
@@ -139,6 +141,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
   // so the bad transcript never reaches the LLM.
   const cancel = useCallback(
     () => {
+      log('STT cancel()', {hadRecognition: Boolean(recognitionRef.current)});
       shouldListenRef.current = false;
       finalRef.current = '';
       interimRef.current = '';
@@ -164,6 +167,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
         return;
       }
 
+      log('STT start()');
       shouldListenRef.current = true;
 
       const acquired = await acquireStream();
@@ -204,6 +208,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       setInterim('');
 
       recognition.onstart = () => {
+        log('STT onstart', {shouldListen: shouldListenRef.current});
         if (!shouldListenRef.current) {
           // Consumer released before recognition spun up. abort() instead
           // of stop() because Chrome's stop() is graceful and may keep the
@@ -243,6 +248,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       };
 
       recognition.onerror = event => {
+        log('STT onerror', {error: event.error, message: event.message});
         // "no-speech" and "aborted" are expected in push-to-talk flow
         if (event.error === 'no-speech' || event.error === 'aborted') {
           return;
@@ -256,6 +262,7 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
 
       recognition.onend = () => {
         const isCurrent = recognitionRef.current === recognition;
+        log('STT onend', {isCurrent});
         // Combine final + interim because the user releases the PTT button
         // mid-utterance — the tail (most recent words) is often still in
         // interim when stop() fires. Sending only finalRef would clip it.

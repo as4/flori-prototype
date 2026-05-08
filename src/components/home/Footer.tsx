@@ -40,7 +40,7 @@ const Footer: React.FC<Props> = ({
         onPressEnd={onPressEnd}
       />
       <div
-        className="text-sm leading-5 text-center"
+        className="text-sm leading-5 text-center select-none"
         style={{color: hintColor}}
       >
         {hint ?? <>Hold <span className="hidden sm:inline">Space </span>to speak</>}

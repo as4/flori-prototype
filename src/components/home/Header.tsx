@@ -25,7 +25,7 @@ const Header: React.FC<Props> = ({muted, settingsOpen, onMuteClick, onSettingsCl
     <div className="flex items-center gap-3 sm:gap-4">
       <Pill
         className={cn(
-          'w-12 h-12 flex items-center justify-center',
+          'hidden w-12 h-12 flex items-center justify-center',
           'transition-colors duration-300',
           muted && 'from-[#FF5A7D] to-[#FF5A7D] border-transparent'
         )}

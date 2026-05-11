@@ -152,6 +152,10 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
         setCurrentViseme('sil');
         scheduledSourcesRef.current = [];
         setIsPlaying(false);
+        if (silentLoopSourceRef.current) {
+          try { silentLoopSourceRef.current.stop(); } catch { /* already stopped */ }
+          silentLoopSourceRef.current = null;
+        }
         rafIdRef.current = null;
         log('Playback finished');
         return;
@@ -199,24 +203,6 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
         navigator.mediaSession.playbackState = 'none';
       }
 
-      // Silent looping AudioBufferSourceNode keeps the AudioContext "active"
-      // so iOS Safari holds the playback session category (overriding the
-      // silent switch). Unlike a looping <audio> element, AudioContext output
-      // does not surface a Now Playing card on the lock screen.
-      if (!silentLoopSourceRef.current) {
-        const silentLoopBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
-        const source = audioContext.createBufferSource();
-        source.buffer = silentLoopBuffer;
-        source.loop = true;
-        source.connect(masterGainRef.current);
-        try {
-          source.start(0);
-          silentLoopSourceRef.current = source;
-        } catch (error) {
-          log('Silent loop source start failed', (error as Error).message);
-        }
-      }
-
       if (audioPrimedRef.current) return;
 
       try {
@@ -253,6 +239,10 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       tickStateRef.current = {cursor: 0, lastViseme: 'sil', lastActiveEnd: 0};
       setCurrentViseme('sil');
       setIsPlaying(false);
+      if (silentLoopSourceRef.current) {
+        try { silentLoopSourceRef.current.stop(); } catch { /* already stopped */ }
+        silentLoopSourceRef.current = null;
+      }
     },
     []
   );
@@ -278,6 +268,26 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       // silent-loop nudge above).
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(error => log('Segment resume failed', (error as Error).message));
+      }
+
+      // Start the silent looping source if it isn't already running. This is
+      // what holds the iOS audio session in "playback" category so the silent
+      // switch doesn't mute TTS. We deliberately keep it off during STT — a
+      // permanently-playing source seems to confuse iOS into routing zero
+      // audio to webkitSpeechRecognition after enough STT↔TTS swaps.
+      if (!silentLoopSourceRef.current && masterGainRef.current) {
+        const silentLoopBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
+        const source = audioContext.createBufferSource();
+        source.buffer = silentLoopBuffer;
+        source.loop = true;
+        source.connect(masterGainRef.current);
+
+        try {
+          source.start(0);
+          silentLoopSourceRef.current = source;
+        } catch (error) {
+          log('Silent loop source start failed', (error as Error).message);
+        }
       }
 
       let buffer: AudioBuffer;

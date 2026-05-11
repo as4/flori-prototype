@@ -1,4 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useImperativeHandle, useRef, useState} from 'react';
+import type {Ref} from 'react';
 import _ from 'lodash';
 import {Rive, ViewModelInstance, ViewModelInstanceNumber} from '@rive-app/canvas';
 import {DEFAULT_RIV_URL} from '../config';
@@ -23,7 +24,12 @@ type StateMachineInput = {
   fire: () => void;
 };
 
+export type RiveCharacterHandle = {
+  fireTrigger: (name: string) => void;
+};
+
 type RiveCharacterProps = {
+  ref?: Ref<RiveCharacterHandle>;
   riveBuffer?: ArrayBuffer;
   currentViseme: string;
   inputName?: string;
@@ -33,7 +39,7 @@ type RiveCharacterProps = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', currentEmotion = 0, onReady}: RiveCharacterProps) => {
+const RiveCharacter = ({ref, riveBuffer, currentViseme, inputName = 'visemeId', currentEmotion = 0, onReady}: RiveCharacterProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const riveRef = useRef<Rive | null>(null);
   const visemeInputRef = useRef<StateMachineInput | null>(null);
@@ -70,6 +76,20 @@ const RiveCharacter = ({riveBuffer, currentViseme, inputName = 'visemeId', curre
       visemePropRef.current = null;
       emotionPropRef.current = null;
     },
+    []
+  );
+
+  // Expose a fireTrigger(name) escape hatch for parent-driven one-shots
+  // (idle gestures, etc.). Resolves against the bound ViewModel's trigger
+  // properties; silent no-op if the ViewModel isn't bound or the trigger
+  // doesn't exist on this .riv.
+  useImperativeHandle(
+    ref,
+    () => ({
+      fireTrigger: name => {
+        viewModelInstanceRef.current?.trigger(name)?.trigger();
+      },
+    }),
     []
   );
 

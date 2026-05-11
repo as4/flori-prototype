@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import _ from 'lodash';
 import {scramble} from './api/scramble';
 import {unlockKeys} from './api/unlock';
 import Background, {pickBgVariant} from './components/home/Background';
@@ -6,7 +7,8 @@ import Footer from './components/home/Footer';
 import Header from './components/home/Header';
 import type {PttState} from './components/home/PttButton';
 import SettingsSidebar, {type TranscriptTurn, type UnlockResult} from './components/home/SettingsSidebar';
-import RiveCharacter from './components/RiveCharacter';
+import RiveCharacter, {type RiveCharacterHandle} from './components/RiveCharacter';
+import {IDLE_GESTURE_DELAY_MAX_MS, IDLE_GESTURE_DELAY_MIN_MS, IDLE_GESTURE_FIRST_DELAY_MAX_MS, IDLE_GESTURE_FIRST_DELAY_MIN_MS, IDLE_GESTURE_TRIGGERS, type RiveTriggerName} from './config';
 import type {EmotionName} from './emotions';
 import {DEFAULT_EMOTION_PROMPT, DEFAULT_SYSTEM_PROMPT, HOME_LLM_MODEL, HOME_TTS_MODEL, HOME_TTS_VOICE,} from './home-config';
 import useEmotionQueue from './hooks/useEmotionQueue';
@@ -50,6 +52,11 @@ const Home = () => {
   const wasSpeakingRef = useRef(false);
   const pttPressStartRef = useRef<number | null>(null);
   const homeRef = useRef<HTMLDivElement | null>(null);
+  const riveRef = useRef<RiveCharacterHandle>(null);
+  // Tracks the last idle gesture so the picker can avoid back-to-back
+  // excited_* picks (they read as the same animation playing twice). Survives
+  // idle exit/re-entry — the rule is global, not per idle stretch.
+  const lastIdleGestureRef = useRef<RiveTriggerName | null>(null);
 
   const adapter = useMemo(
     () => createGoogleAdapter(llmKey, HOME_LLM_MODEL),
@@ -469,6 +476,46 @@ const Home = () => {
     [status, setCurrentEmotion]
   );
 
+  // Idle gestures — fire a random IDLE_GESTURE_TRIGGERS pick every
+  // 5–14s while the app is truly idle (pttState collapses listening /
+  // initializing / thinking / processing / speaking into non-idle states).
+  // "No two excited_* in a row" is enforced by filtering the pool when the
+  // last pick was excited_*.
+  useEffect(
+    () => {
+      if (pttState !== 'idle' || !characterReady) return;
+
+      let timerId: number;
+
+      const scheduleNext = () => {
+        const isFirst = lastIdleGestureRef.current === null;
+        const minMs = isFirst ? IDLE_GESTURE_FIRST_DELAY_MIN_MS : IDLE_GESTURE_DELAY_MIN_MS;
+        const maxMs = isFirst ? IDLE_GESTURE_FIRST_DELAY_MAX_MS : IDLE_GESTURE_DELAY_MAX_MS;
+        const delay = minMs + Math.random() * (maxMs - minMs);
+        timerId = window.setTimeout(
+          () => {
+            const lastWasExcited = lastIdleGestureRef.current?.startsWith('excited_') ?? false;
+            const pool = lastWasExcited ?
+              _.filter(IDLE_GESTURE_TRIGGERS, name => !name.startsWith('excited_'))
+              :
+              IDLE_GESTURE_TRIGGERS;
+            const pick = pool[Math.floor(Math.random() * pool.length)];
+            lastIdleGestureRef.current = pick;
+            riveRef.current?.fireTrigger(pick);
+            log(`Idle gesture → ${pick}`);
+            scheduleNext();
+          },
+          delay
+        );
+      };
+
+      scheduleNext();
+
+      return () => clearTimeout(timerId);
+    },
+    [pttState, characterReady]
+  );
+
   ////////////////////////////////////////////////////////////////////////////////
 
   return (
@@ -534,6 +581,7 @@ const Home = () => {
                 }}
               >
                 <RiveCharacter
+                  ref={riveRef}
                   currentViseme={currentViseme}
                   currentEmotion={currentEmotion}
                   onReady={handleCharacterReady}

@@ -50,8 +50,14 @@ const useEmotionQueue = ({enabled}: Options) => {
     () => {
       const next = pendingRef.current.shift();
       if (next && enabledRef.current) {
-        setCurrentEmotion(EMOTION_TO_ID[next]);
-        log('Emotion requested', next);
+        // TEMPORARY: the current .riv only has [HAPPY] and [CURIOUS] authored
+        // as real states, and the LLM falls into a predictable happy→curious
+        // pattern that feels canned. Coin-flip between the two per segment
+        // until the artist ships the full emotion set, then revert to using
+        // the LLM-supplied `next`.
+        const random: EmotionName = Math.random() < 0.5 ? 'happy' : 'curious';
+        setCurrentEmotion(EMOTION_TO_ID[random]);
+        log('Emotion requested', random);
       }
     },
     []

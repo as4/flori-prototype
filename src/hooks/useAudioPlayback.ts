@@ -5,39 +5,6 @@ import {log} from '../utils/log';
 
 const VISEME_HOLD_DURATION = 0.15;
 
-// Tiny silent WAV (100ms of 8-bit mono 8kHz PCM). Played in a loop via
-// HTMLAudioElement to hold iOS Safari's audio session in the "playback"
-// category — without an active media element, navigator.audioSession.type =
-// 'playback' alone is no longer enough on recent iOS Safari builds and the
-// silent switch overrides Flori's TTS.
-const SILENT_WAV_DATA_URL = (() => {
-  const sampleRate = 8000;
-  const numSamples = 800;
-  const buffer = new ArrayBuffer(44 + numSamples);
-  const view = new DataView(buffer);
-  const writeAscii = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
-  };
-  writeAscii(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples, true);
-  writeAscii(8, 'WAVE');
-  writeAscii(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate, true);
-  view.setUint16(32, 1, true);
-  view.setUint16(34, 8, true);
-  writeAscii(36, 'data');
-  view.setUint32(40, numSamples, true);
-  for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 0x80);
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return `data:audio/wav;base64,${btoa(binary)}`;
-})();
-
 // Declare playback intent at module load. iOS Safari 18 appears to bind the
 // audio session category at first AudioContext construction; setting this only
 // in a user gesture (when the context is created) is too late to override the
@@ -71,7 +38,7 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
-  const silentLoopRef = useRef<HTMLAudioElement | null>(null);
+  const silentLoopSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioPrimedRef = useRef(false);
   // Latest muted, read inside ensureAudioReady so the gain initializes
   // correctly when audio is unlocked while already muted.
@@ -108,8 +75,8 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
 
   useEffect(
     () => () => {
-      silentLoopRef.current?.pause();
-      silentLoopRef.current = null;
+      try { silentLoopSourceRef.current?.stop(); } catch { /* already stopped */ }
+      silentLoopSourceRef.current = null;
     },
     []
   );
@@ -208,22 +175,6 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
   // every press collides with iOS SFSpeechRecognizer ("Source is stopped").
   const ensureAudioReady = useCallback(
     () => {
-      // Start a looping silent <audio> element inside the user gesture. iOS
-      // requires the FIRST play() to fully resolve in a gesture before any
-      // later play() calls (in appendSegment) are allowed; pausing it before
-      // that resolution voids the priming and audio stops working. The trade
-      // off is that holding the playback session here costs a little
-      // listening-transition latency when STT starts immediately after.
-      if (!silentLoopRef.current) {
-        const audio = new Audio();
-        audio.src = SILENT_WAV_DATA_URL;
-        audio.loop = true;
-        audio.preload = 'auto';
-        silentLoopRef.current = audio;
-      }
-
-      silentLoopRef.current.play().catch(error => log('Silent loop play failed', (error as Error).message));
-
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContext();
       }
@@ -238,6 +189,32 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
 
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
+      }
+
+      // Try to suppress the iOS lock-screen Now Playing card. AudioContext
+      // playback doesn't rely on these flags the way HTMLAudio does, so this
+      // shouldn't break the silent-switch override.
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      }
+
+      // Silent looping AudioBufferSourceNode keeps the AudioContext "active"
+      // so iOS Safari holds the playback session category (overriding the
+      // silent switch). Unlike a looping <audio> element, AudioContext output
+      // does not surface a Now Playing card on the lock screen.
+      if (!silentLoopSourceRef.current) {
+        const silentLoopBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
+        const source = audioContext.createBufferSource();
+        source.buffer = silentLoopBuffer;
+        source.loop = true;
+        source.connect(masterGainRef.current);
+        try {
+          source.start(0);
+          silentLoopSourceRef.current = source;
+        } catch (error) {
+          log('Silent loop source start failed', (error as Error).message);
+        }
       }
 
       if (audioPrimedRef.current) return;
@@ -302,11 +279,6 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(error => log('Segment resume failed', (error as Error).message));
       }
-
-      // Re-arm the silent loop in case iOS paused it when STT swapped the
-      // audio session into "record" mode. play() resolves without a fresh
-      // gesture because the element already played inside one.
-      silentLoopRef.current?.play().catch(error => log('Silent loop replay failed', (error as Error).message));
 
       let buffer: AudioBuffer;
       try {

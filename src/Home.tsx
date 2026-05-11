@@ -8,7 +8,7 @@ import Header from './components/home/Header';
 import type {PttState} from './components/home/PttButton';
 import SettingsSidebar, {type TranscriptTurn, type UnlockResult} from './components/home/SettingsSidebar';
 import RiveCharacter, {type RiveCharacterHandle} from './components/RiveCharacter';
-import {IDLE_GESTURE_DELAY_MAX_MS, IDLE_GESTURE_DELAY_MIN_MS, IDLE_GESTURE_FIRST_DELAY_MAX_MS, IDLE_GESTURE_FIRST_DELAY_MIN_MS, IDLE_GESTURE_TRIGGERS, type RiveTriggerName} from './config';
+import {IDLE_GESTURE_DELAY_MAX_MS, IDLE_GESTURE_DELAY_MIN_MS, IDLE_GESTURE_FIRST_DELAY_MAX_MS, IDLE_GESTURE_FIRST_DELAY_MIN_MS, IDLE_GESTURE_TRIGGERS, IDLE_GESTURE_WAVE_BIAS, type RiveTriggerName} from './config';
 import type {EmotionName} from './emotions';
 import {DEFAULT_EMOTION_PROMPT, DEFAULT_SYSTEM_PROMPT, HOME_LLM_MODEL, HOME_TTS_MODEL, HOME_TTS_VOICE,} from './home-config';
 import useEmotionQueue from './hooks/useEmotionQueue';
@@ -499,7 +499,14 @@ const Home = () => {
               _.filter(IDLE_GESTURE_TRIGGERS, name => !name.startsWith('excited_'))
               :
               IDLE_GESTURE_TRIGGERS;
-            const pick = pool[Math.floor(Math.random() * pool.length)];
+            // Bias toward 'wave' when it's in the pool — produces runs of
+            // waves with occasional excited bursts instead of strict
+            // alternation. Falls through to uniform random if wave isn't
+            // an option (e.g. someone trims IDLE_GESTURE_TRIGGERS later).
+            const pick: RiveTriggerName = pool.includes('wave') && Math.random() < IDLE_GESTURE_WAVE_BIAS ?
+              'wave'
+              :
+              pool[Math.floor(Math.random() * pool.length)];
             lastIdleGestureRef.current = pick;
             riveRef.current?.fireTrigger(pick);
             log(`Idle gesture → ${pick}`);

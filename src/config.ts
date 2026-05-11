@@ -23,8 +23,14 @@ export type RiveTriggerName = typeof RIVE_TRIGGERS[number];
 
 // Subset of RIVE_TRIGGERS that fires randomly during idle. Two consecutive
 // "excited_*" picks look repetitive, so the picker forces a non-excited pick
-// after any excited_*.
+// after any excited_*. Wave is allowed to repeat freely.
 export const IDLE_GESTURE_TRIGGERS: RiveTriggerName[] = ['wave', 'excited_3'];
+
+// Probability of picking 'wave' when both wave and excited_* are allowed
+// (i.e. the last pick wasn't excited_*). Skews toward wave so the idle
+// pattern produces runs of waves with occasional excited bursts, instead of
+// a boring excited↔wave alternation.
+export const IDLE_GESTURE_WAVE_BIAS = 0.75;
 
 // First idle gesture of the session — shorter delay so Flori feels alive
 // shortly after page load instead of standing still for 5–14s.

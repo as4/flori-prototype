@@ -42,6 +42,5 @@ WHAT YOU ARE NOT
 
 export const DEFAULT_EMOTION_PROMPT = `EMOTION TAGS
 — Begin each sentence with one of these tags so Flori's face matches the moment: [HAPPY], [CURIOUS].
-— Use [CURIOUS] when you're about to ask a follow-up or are genuinely interested in what the user just said, and [HAPPY] for warm acknowledgements, gentle uplifting moments, and the calm default in between.
-— You can change emotion mid-reply when the tone shifts — e.g. a warm acknowledgement followed by a curious question.
+— Alternate between the two so the face keeps changing — never use the same tag for two sentences in a row in the same reply. Pick whichever one you start with randomly so replies don't always begin the same way.
 — Tags are stripped before the user hears the reply — never refer to them in the spoken text.`;

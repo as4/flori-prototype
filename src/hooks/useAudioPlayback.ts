@@ -1,4 +1,5 @@
 import {useState, useRef, useCallback, useEffect} from 'react';
+import {OVERRIDE_IOS_SILENT_SWITCH} from '../config';
 import {log} from '../utils/log';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,6 +11,7 @@ const VISEME_HOLD_DURATION = 0.15;
 // in a user gesture (when the context is created) is too late to override the
 // silent switch on a fresh Safari launch.
 (() => {
+  if (!OVERRIDE_IOS_SILENT_SWITCH) return;
   const audioSession = (navigator as Navigator & {audioSession?: {type: string}}).audioSession;
   if (!audioSession) return;
   try { audioSession.type = 'playback'; } catch { /* unsupported */ }
@@ -275,7 +277,7 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       // switch doesn't mute TTS. We deliberately keep it off during STT — a
       // permanently-playing source seems to confuse iOS into routing zero
       // audio to webkitSpeechRecognition after enough STT↔TTS swaps.
-      if (!silentLoopSourceRef.current && masterGainRef.current) {
+      if (OVERRIDE_IOS_SILENT_SWITCH && !silentLoopSourceRef.current && masterGainRef.current) {
         const silentLoopBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
         const source = audioContext.createBufferSource();
         source.buffer = silentLoopBuffer;

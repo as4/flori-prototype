@@ -48,6 +48,7 @@ const Home = () => {
   const ttftLoggedRef = useRef(false);
   const isListeningRef = useRef(false);
   const wasSpeakingRef = useRef(false);
+  const pttPressStartRef = useRef<number | null>(null);
   const homeRef = useRef<HTMLDivElement | null>(null);
 
   const adapter = useMemo(
@@ -188,6 +189,11 @@ const Home = () => {
     onError: handleSttError,
   });
 
+  if (isListening && !isListeningRef.current && pttPressStartRef.current !== null) {
+    log('PTT listening activated', {elapsed: `${(performance.now() - pttPressStartRef.current).toFixed(0)}ms`});
+    pttPressStartRef.current = null;
+  }
+
   isListeningRef.current = isListening;
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -273,12 +279,16 @@ const Home = () => {
   const handlePttStart = useCallback(
     () => {
       if (pttState === 'no-keys' || pttState === 'denied') return;
+      const pressStart = performance.now();
+      pttPressStartRef.current = pressStart;
+      log('PTT press');
       setPttPressed(true);
       // Cancel any in-flight LLM/TTS turn so barge-in is clean.
       cancelLLM();
       beginTurn();
       resetEmotionQueue();
       ensureAudioReady();
+      log('PTT ensureAudioReady done', {elapsed: `${(performance.now() - pressStart).toFixed(0)}ms`});
 
       // Auto-connect on first press. fire-and-forget; useInworldTTS owns the
       // socket lifecycle.
@@ -289,6 +299,7 @@ const Home = () => {
       }
 
       startListening();
+      log('PTT startListening returned', {elapsed: `${(performance.now() - pressStart).toFixed(0)}ms`});
     },
     [
       pttState,

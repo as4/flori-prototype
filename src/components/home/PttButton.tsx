@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, type PointerEvent} from 'react';
+import React, {useCallback, useEffect, useRef, type PointerEvent} from 'react';
 import _ from 'lodash';
 import useMicLevels, {unlockAudioContext} from '../../hooks/useMicLevels';
 import useInterimLevels from '../../hooks/useInterimLevels';
@@ -47,12 +47,27 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
   const isInitializingState = state === 'initializing';
   const isInteractive = state !== 'no-keys' && state !== 'denied';
 
+  // Cleanup fn for window-level release listeners installed on pointerdown.
+  // Held in a ref so the first release wins — subsequent button or window
+  // events become no-ops, preventing onPressEnd from firing twice.
+  const teardownReleaseListenersRef = useRef<(() => void) | null>(null);
 
   //--------------------------------------------------------------------------
   //
   //  Event handlers
   //
   //--------------------------------------------------------------------------
+
+  const firePressEnd = useCallback(
+    () => {
+      const teardown = teardownReleaseListenersRef.current;
+      if (!teardown) return;
+      teardownReleaseListenersRef.current = null;
+      teardown();
+      onPressEnd?.();
+    },
+    [onPressEnd]
+  );
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
@@ -64,16 +79,35 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
       // Resume the AudioContext synchronously inside this user gesture so the
       // analyser graph is 'running' by the time useMicLevels' effect attaches.
       unlockAudioContext();
+
+      // Fallback release detection. Safari's mic permission prompt swallows
+      // the captured pointer's release event on first grant, so the button
+      // would otherwise stay visually pressed and listening would run forever.
+      // window-level pointer/mouse/touch listeners catch a release that drifts
+      // off-button; `blur` catches the modal case where no pointer event ever
+      // reaches the page (system prompt closes → focus returns to page).
+      const release = () => firePressEnd();
+      window.addEventListener('pointerup', release);
+      window.addEventListener('pointercancel', release);
+      window.addEventListener('mouseup', release);
+      window.addEventListener('touchend', release);
+      window.addEventListener('blur', release);
+      teardownReleaseListenersRef.current = () => {
+        window.removeEventListener('pointerup', release);
+        window.removeEventListener('pointercancel', release);
+        window.removeEventListener('mouseup', release);
+        window.removeEventListener('touchend', release);
+        window.removeEventListener('blur', release);
+      };
+
       onPressStart?.();
     },
-    [isInteractive, onPressStart]
+    [isInteractive, onPressStart, firePressEnd]
   );
 
   const handlePressEnd = useCallback(
-    () => {
-      onPressEnd?.();
-    },
-    [onPressEnd]
+    () => firePressEnd(),
+    [firePressEnd]
   );
 
   //--------------------------------------------------------------------------

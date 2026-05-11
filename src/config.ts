@@ -32,8 +32,8 @@ export const IDLE_GESTURE_FIRST_DELAY_MIN_MS = 1500;
 export const IDLE_GESTURE_FIRST_DELAY_MAX_MS = 3000;
 
 // Random delay between subsequent idle gestures.
-export const IDLE_GESTURE_DELAY_MIN_MS = 5000;
-export const IDLE_GESTURE_DELAY_MAX_MS = 14000;
+export const IDLE_GESTURE_DELAY_MIN_MS = 3000;
+export const IDLE_GESTURE_DELAY_MAX_MS = 9000;
 
 ////////////////////////////////////////////////////////////////////////////////
 

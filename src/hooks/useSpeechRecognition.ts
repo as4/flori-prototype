@@ -128,7 +128,11 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       const recognition = recognitionRef.current;
       if (recognition) {
         try {
-          recognition.stop();
+          // abort() instead of stop() — Safari's stop() is graceful and can
+          // leave the recognizer running past the user's release. The combined
+          // final + interim transcript captured in onend covers the trailing
+          // words we'd otherwise wait on stop() to flush.
+          recognition.abort();
         } catch { /* already stopped */
         }
       }

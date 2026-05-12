@@ -1,8 +1,9 @@
-import {useState, useCallback, type ChangeEvent} from 'react';
+import {useState, useCallback, useRef, type ChangeEvent} from 'react';
 import _ from 'lodash';
-import RiveCharacter from '../RiveCharacter';
+import RiveCharacter, {type RiveCharacterHandle} from '../RiveCharacter';
 import VisemeFallback from './VisemeFallback';
 import {EMOTIONS} from '../../emotions';
+import {RIVE_TRIGGERS} from '../../config';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,11 +32,20 @@ const RiveCharacterDev = ({
   const [inputName, setInputName] = useState('visemeId');
   const [readError, setReadError] = useState<string | null>(null);
 
+  const riveRef = useRef<RiveCharacterHandle>(null);
+
   //--------------------------------------------------------------------------
   //
   //  Event handlers
   //
   //--------------------------------------------------------------------------
+
+  const handleFireTrigger = useCallback(
+    (name: string) => {
+      riveRef.current?.fireTrigger(name);
+    },
+    []
+  );
 
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +131,23 @@ const RiveCharacterDev = ({
         }
       </div>
 
+      <div className="mode-switcher compact">
+        {
+          _.map(
+            RIVE_TRIGGERS,
+            trigger => (
+              <button
+                key={trigger}
+                type="button"
+                onClick={() => handleFireTrigger(trigger)}
+              >
+                {trigger}
+              </button>
+            )
+          )
+        }
+      </div>
+
       <label className="emotion-toggle">
         <input
           type="checkbox"
@@ -138,6 +165,7 @@ const RiveCharacterDev = ({
       {
         mode === 'rive' ?
           <RiveCharacter
+            ref={riveRef}
             riveBuffer={riveBuffer}
             currentViseme={currentViseme}
             inputName={inputName}

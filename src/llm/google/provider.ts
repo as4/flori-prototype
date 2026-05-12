@@ -7,7 +7,7 @@ import type {ProviderRuntime} from '../providers';
 
 const useGeminiProvider = (): ProviderRuntime => {
   const [apiKey, setApiKey] = useLocalStorage('flori-google-ai-key');
-  const [model, setModel] = useLocalStorage('flori-gemini-model', 'gemini-2.5-flash-lite');
+  const [model, setModel] = useLocalStorage('flori-gemini-model', 'gemini-2.5-flash');
 
   const adapter = useMemo(
     () => createGoogleAdapter(apiKey, model),

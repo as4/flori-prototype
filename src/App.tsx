@@ -1,4 +1,5 @@
 import {useState, useCallback, useEffect, useRef} from 'react';
+import _ from 'lodash';
 import useLocalStorage from './hooks/useLocalStorage';
 import useInworldTTS from './hooks/useInworldTTS';
 import useLLMChat from './hooks/useLLMChat';
@@ -9,6 +10,7 @@ import PushToTalkButton from './components/dev/PushToTalkButton';
 import DebugPanel from './components/dev/DebugPanel';
 import LLMConfig from './components/dev/LLMConfig';
 import TTSConfig from './components/dev/TTSConfig';
+import SecretInput from './components/dev/SecretInput';
 import Transcript, {type TranscriptTurn} from './components/dev/Transcript';
 import PersonaEditor from './components/dev/PersonaEditor';
 import EmotionPromptEditor from './components/dev/EmotionPromptEditor';
@@ -18,6 +20,8 @@ import type {LLMProviderId} from './llm/providers';
 import {DEFAULT_TTS_MODEL} from './config';
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_EMOTION_PROMPT} from './home-config';
 import type {EmotionName} from './emotions';
+import {scramble} from './api/scramble';
+import {unlockKeys} from './api/unlock';
 import {log} from './utils/log';
 import './App.css';
 
@@ -31,6 +35,11 @@ const STATUS_LABELS: Record<string, string> = {
   speaking: 'Speaking',
   error: 'Error',
 };
+
+const STT_LANGUAGES = [
+  {id: 'en-US', label: 'English'},
+  {id: 'ru-RU', label: 'Russian'},
+] as const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +56,16 @@ const App = () => {
   const [emotionPrompt, setEmotionPrompt] = useLocalStorage('flori-emotion-prompt', DEFAULT_EMOTION_PROMPT);
   const [useLLMEmotionStr, setUseLLMEmotionStr] = useLocalStorage('flori-llm-emotion', 'true');
   const useLLMEmotion = useLLMEmotionStr === 'true';
+  const [sttLanguage, setSttLanguage] = useLocalStorage('flori-stt-language', 'en-US');
+
+  // Shared with Home (`flori-password`) so unlocking on either page propagates
+  // to the other. `flori-google-ai-key` matches the key the Gemini provider
+  // binds to internally, so writing it here updates the provider live.
+  const [storedPassword, setStoredPassword] = useLocalStorage('flori-password');
+  const [, setGeminiApiKey] = useLocalStorage('flori-google-ai-key');
+  const [accessCode, setAccessCode] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const {
     currentEmotion,
@@ -199,6 +218,7 @@ const App = () => {
     stop: stopListening,
     cancel: cancelListening,
   } = useSpeechRecognition({
+    lang: sttLanguage,
     onFinal: handleSttFinal,
     onError: handleSttError,
   });
@@ -222,6 +242,36 @@ const App = () => {
       }
     },
     [status]
+  );
+
+  // Auto-unlock on mount: if a previous session already exchanged a password
+  // for keys, fetch fresh ones now. On failure we clear the stored password
+  // so the access-code input is shown again.
+  useEffect(
+    () => {
+      if (!storedPassword || apiKey) return;
+
+      let cancelled = false;
+
+      void (async () => {
+        const result = await unlockKeys(storedPassword);
+        if (cancelled) return;
+
+        if (result.ok) {
+          setApiKey(result.ttsKey);
+          setGeminiApiKey(result.llmKey);
+          return;
+        }
+
+        log('Auto-unlock failed', result.error);
+        setStoredPassword('');
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [storedPassword, apiKey, setApiKey, setGeminiApiKey, setStoredPassword]
   );
 
   // ESC aborts an in-flight STT capture without dispatching the (likely
@@ -273,6 +323,28 @@ const App = () => {
   //  Event handlers
   //
   //--------------------------------------------------------------------------
+
+  const handleUnlock = useCallback(
+    async () => {
+      setUnlocking(true);
+      setUnlockError(null);
+      const scrambled = scramble(accessCode);
+      const result = await unlockKeys(scrambled);
+      setUnlocking(false);
+
+      if (result.ok) {
+        setApiKey(result.ttsKey);
+        setGeminiApiKey(result.llmKey);
+        setStoredPassword(scrambled);
+        setAccessCode('');
+        return;
+      }
+
+      log('Unlock failed', result.error);
+      setUnlockError(result.error);
+    },
+    [accessCode, setApiKey, setGeminiApiKey, setStoredPassword]
+  );
 
   const handleResetChat = () => {
     resetChat();
@@ -343,6 +415,29 @@ const App = () => {
         </div>
 
         <div className="panel panel-controls">
+          <div className="form-group">
+            <SecretInput
+              label="Access code"
+              placeholder="Enter access code..."
+              value={accessCode}
+              onChange={setAccessCode}
+            />
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={!accessCode || unlocking}
+              onClick={handleUnlock}
+            >
+              {unlocking ? 'Unlocking...' : 'Unlock'}
+            </button>
+            {
+              unlockError &&
+              <div className="rive-error">{unlockError}</div>
+            }
+          </div>
+
+          <hr className="section-divider" />
+
           <LLMConfig
             providers={llmProviders}
             activeProviderId={llmProviderId as LLMProviderId}
@@ -362,6 +457,29 @@ const App = () => {
             onModelIdChange={setModelId}
             onStreamModeChange={value => setStreamModeStr(String(value))}
           />
+
+          <hr className="section-divider" />
+
+          <div className="form-group">
+            <label>STT language</label>
+            <div className="mode-switcher compact">
+              {
+                _.map(
+                  STT_LANGUAGES,
+                  language => (
+                    <button
+                      key={language.id}
+                      className={sttLanguage === language.id ? 'active' : ''}
+                      type="button"
+                      onClick={() => setSttLanguage(language.id)}
+                    >
+                      {language.label}
+                    </button>
+                  )
+                )
+              }
+            </div>
+          </div>
 
           <hr className="section-divider" />
 

@@ -153,15 +153,15 @@ const LiveTranscriptPill: React.FC<Props> = ({hintColor, text, isListening}) => 
   // Pill text uses a stronger alpha than the hint label below — the
   // surrounding pill bg cuts a bit of contrast, so the text needs more
   // weight than the subtle "Hold to speak" hint.
-  const textColor = isDarkHint ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.96)';
+  const textColor = isDarkHint ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.96)';
 
   return (
     <div
       ref={wrapperRef}
       className={cn(
         'relative mb-6',
-        'transition-[filter,opacity] ease-out',
-        visible ? 'opacity-100 blur-none duration-200' : 'opacity-0 blur-md duration-700 origin-bottom scale-75 -translate-y-[30px]'
+        'transition-[filter,opacity,scale,translate] ease-out',
+        visible ? 'opacity-100 blur-none duration-200' : 'opacity-0 blur-md duration-300 ease-in origin-bottom scale-75 -translate-y-7.5'
       )}
       style={{
         width: `${bgSize.width}px`,

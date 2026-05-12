@@ -399,6 +399,28 @@ const App = () => {
             onUseLLMEmotionChange={value => setUseLLMEmotionStr(String(value))}
           />
 
+          <div className="form-row">
+            {
+              isConnected ?
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={disconnect}
+                >
+                  Disconnect
+                </button>
+                :
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={!apiKey || status === 'connecting'}
+                  onClick={connect}
+                >
+                  Connect
+                </button>
+            }
+          </div>
+
           <PushToTalkButton
             state={pttState}
             interim={liveSpeech}
@@ -494,28 +516,6 @@ const App = () => {
             defaultValue={DEFAULT_EMOTION_PROMPT}
             onChange={setEmotionPrompt}
           />
-
-          <div className="form-row">
-            {
-              isConnected ?
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={disconnect}
-                >
-                  Disconnect
-                </button>
-                :
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  disabled={!apiKey || status === 'connecting'}
-                  onClick={connect}
-                >
-                  Connect
-                </button>
-            }
-          </div>
 
           <Transcript turns={transcript} onReset={handleResetChat} />
 

@@ -362,6 +362,25 @@
   opacity: 0.5;
 }
 
+.triggers-row button:hover {
+  background: var(--border);
+}
+
+.triggers-row button.fired {
+  animation: trigger-fade 500ms ease-out;
+}
+
+@keyframes trigger-fade {
+  0% {
+    background: var(--accent);
+    color: #0b0c0f;
+  }
+  100% {
+    background: transparent;
+    color: var(--text);
+  }
+}
+
 .emotion-toggle {
   display: inline-flex;
   align-items: center;

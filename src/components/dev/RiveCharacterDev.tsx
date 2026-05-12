@@ -1,4 +1,4 @@
-import {useState, useCallback, useRef, type ChangeEvent} from 'react';
+import {useState, useCallback, useRef, type ChangeEvent, type MouseEvent} from 'react';
 import _ from 'lodash';
 import RiveCharacter, {type RiveCharacterHandle} from '../RiveCharacter';
 import VisemeFallback from './VisemeFallback';
@@ -41,8 +41,15 @@ const RiveCharacterDev = ({
   //--------------------------------------------------------------------------
 
   const handleFireTrigger = useCallback(
-    (name: string) => {
+    (name: string, event: MouseEvent<HTMLButtonElement>) => {
       riveRef.current?.fireTrigger(name);
+      const button = event.currentTarget;
+      // Re-add the class so the fade-out animation restarts on repeat
+      // clicks; without removing/reflowing the browser ignores the second
+      // add and the user sees no feedback the trigger fired.
+      button.classList.remove('fired');
+      void button.offsetWidth;
+      button.classList.add('fired');
     },
     []
   );
@@ -131,7 +138,7 @@ const RiveCharacterDev = ({
         }
       </div>
 
-      <div className="mode-switcher compact">
+      <div className="mode-switcher compact triggers-row">
         {
           _.map(
             RIVE_TRIGGERS,
@@ -139,7 +146,7 @@ const RiveCharacterDev = ({
               <button
                 key={trigger}
                 type="button"
-                onClick={() => handleFireTrigger(trigger)}
+                onClick={event => handleFireTrigger(trigger, event)}
               >
                 {trigger}
               </button>

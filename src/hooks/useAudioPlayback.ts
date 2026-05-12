@@ -6,16 +6,27 @@ import {log} from '../utils/log';
 
 const VISEME_HOLD_DURATION = 0.15;
 
-// Declare playback intent at module load. iOS Safari 18 appears to bind the
-// audio session category at first AudioContext construction; setting this only
-// in a user gesture (when the context is created) is too late to override the
-// silent switch on a fresh Safari launch.
-(() => {
+// Set iOS Safari's audio session category to "playback". STT (and a few
+// other interruptions, e.g. device lock) flips it elsewhere, so this needs
+// re-asserting at every meaningful boundary, not just module load.
+const assertPlaybackSession = () => {
   if (!OVERRIDE_IOS_SILENT_SWITCH) return;
   const audioSession = (navigator as Navigator & {audioSession?: {type: string}}).audioSession;
   if (!audioSession) return;
   try { audioSession.type = 'playback'; } catch { /* unsupported */ }
-})();
+};
+
+// iOS Safari (17, 18, 26 — same behavior across versions) appears to
+// bind the audio session category at first AudioContext construction;
+// setting this only in a user gesture (when the context is created) is
+// too late to override the silent switch on a fresh Safari launch.
+assertPlaybackSession();
+
+// iOS Safari adds an 'interrupted' state on top of the spec'd 'suspended' —
+// reached when the device locks or a phone call comes in. resume() in a
+// user gesture brings the context back from either.
+const isContextDormant = (state: AudioContextState | 'interrupted') =>
+  state === 'suspended' || state === 'interrupted';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +90,35 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
     () => () => {
       try { silentLoopSourceRef.current?.stop(); } catch { /* already stopped */ }
       silentLoopSourceRef.current = null;
+    },
+    []
+  );
+
+  // Lock/unlock and tab-switch leave the AudioContext in 'interrupted' (or
+  // 'suspended') with the audio session category reset. On return-to-foreground
+  // we resume the context and re-assert "playback" so the next PTT press lands
+  // on a live session — without this, audio stays dead until page refresh.
+  useEffect(
+    () => {
+      const recover = () => {
+        const audioContext = audioContextRef.current;
+        if (!audioContext) return;
+        if (isContextDormant(audioContext.state)) {
+          audioContext.resume().catch(error => log('Visibility resume failed', (error as Error).message));
+        }
+        assertPlaybackSession();
+      };
+
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible') recover();
+      };
+
+      document.addEventListener('visibilitychange', handleVisibility);
+      window.addEventListener('pageshow', recover);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('pageshow', recover);
+      };
     },
     []
   );
@@ -193,17 +233,11 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
         masterGainRef.current.connect(audioContext.destination);
       }
 
-      if (audioContext.state === 'suspended') {
+      if (isContextDormant(audioContext.state)) {
         audioContext.resume().catch(error => log('AudioContext resume failed', (error as Error).message));
       }
 
-      // Try to suppress the iOS lock-screen Now Playing card. AudioContext
-      // playback doesn't rely on these flags the way HTMLAudio does, so this
-      // shouldn't break the silent-switch override.
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = null;
-        navigator.mediaSession.playbackState = 'none';
-      }
+      assertPlaybackSession();
 
       if (audioPrimedRef.current) return;
 
@@ -268,9 +302,16 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
       // source.start() below schedules even while suspended; the source plays
       // once the context resumes (driven by the user's next gesture or the
       // silent-loop nudge above).
-      if (audioContext.state === 'suspended') {
+      if (isContextDormant(audioContext.state)) {
         audioContext.resume().catch(error => log('Segment resume failed', (error as Error).message));
       }
+
+      // STT flips the iOS audio session to "record" while listening, and
+      // it doesn't return to "playback" on its own — leaving the silent-loop
+      // source (and any decoded TTS) playing into a still-recording session,
+      // i.e. silently. Re-assert here so every TTS turn comes back to
+      // playback before the first source is scheduled.
+      assertPlaybackSession();
 
       // Start the silent looping source if it isn't already running. This is
       // what holds the iOS audio session in "playback" category so the silent
@@ -283,6 +324,12 @@ const useAudioPlayback = ({muted, onSegmentStart}: UseAudioPlaybackOptions = {})
         source.buffer = silentLoopBuffer;
         source.loop = true;
         source.connect(masterGainRef.current);
+        // iOS kills the source on audio-session interruption (e.g. device
+        // lock). Clear the ref when that happens so the next TTS turn
+        // recreates it instead of silently relying on a dead node.
+        source.onended = () => {
+          if (silentLoopSourceRef.current === source) silentLoopSourceRef.current = null;
+        };
 
         try {
           source.start(0);

@@ -1,4 +1,5 @@
 import React from 'react';
+import LiveTranscriptPill from './LiveTranscriptPill';
 import PttButton, {type PttState} from './PttButton';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8,6 +9,7 @@ type Props = {
   pttState: PttState;
   stream?: MediaStream | null;
   interim?: string;
+  liveText?: string;
   isListening?: boolean;
   onPressStart?: () => void;
   onPressEnd?: () => void;
@@ -20,6 +22,7 @@ const Footer: React.FC<Props> = ({
   pttState,
   stream,
   interim,
+  liveText,
   isListening,
   onPressStart,
   onPressEnd,
@@ -31,6 +34,11 @@ const Footer: React.FC<Props> = ({
 
   return (
     <footer className="absolute right-0 bottom-6 sm:bottom-12 left-0 z-10 flex flex-col items-center gap-4">
+      <LiveTranscriptPill
+        hintColor={hintColor}
+        text={liveText}
+        isListening={isListening}
+      />
       <PttButton
         state={pttState}
         stream={stream}

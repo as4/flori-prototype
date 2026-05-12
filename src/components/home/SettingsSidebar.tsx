@@ -20,16 +20,24 @@ export type TranscriptTurn = {
   text: string;
 };
 
+export type SttLanguageOption = {
+  id: string;
+  label: string;
+};
+
 type Props = {
   open: boolean;
   unlocked: boolean;
   isConnected?: boolean;
   transcript?: TranscriptTurn[];
+  sttLanguages?: ReadonlyArray<SttLanguageOption>;
+  sttLanguage?: string;
   ttftMs?: number | null;
   ttfaMs?: number | null;
   onClose?: () => void;
   onUnlock?: (password: string) => Promise<UnlockResult>;
   onDisconnect?: () => void;
+  onSttLanguageChange?: (id: string) => void;
   // Fired during a swipe-to-close drag with the current rightward offset
   // (0 on touchend / release) so the parent can move the stage in lockstep.
   onSwipeOffset?: (dx: number) => void;
@@ -162,11 +170,14 @@ const SettingsSidebar: React.FC<Props> = ({
   unlocked,
   isConnected,
   transcript,
+  sttLanguages,
+  sttLanguage,
   ttftMs,
   ttfaMs,
   onClose,
   onUnlock,
   onDisconnect,
+  onSttLanguageChange,
   onSwipeOffset,
 }) => {
   const passwordId = useId();
@@ -391,6 +402,38 @@ const SettingsSidebar: React.FC<Props> = ({
         >
           Disconnect
         </button>
+      }
+
+      {
+        unlocked && sttLanguages && sttLanguage &&
+        <div className="w-full flex flex-col gap-3">
+          <SectionTitle>Speech recognition</SectionTitle>
+          <div className="flex gap-2">
+            {
+              _.map(
+                sttLanguages,
+                language => (
+                  <button
+                    key={language.id}
+                    className={cn(
+                      'px-4 py-2 rounded-full border',
+                      'text-sm font-semibold',
+                      'cursor-pointer transition-colors duration-150',
+                      sttLanguage === language.id ?
+                        'border-[#FF5A7D] bg-[#FF5A7D]/[0.16] text-white'
+                        :
+                        'border-white/[0.16] text-white/[0.72]'
+                    )}
+                    type="button"
+                    onClick={() => onSttLanguageChange?.(language.id)}
+                  >
+                    {language.label}
+                  </button>
+                )
+              )
+            }
+          </div>
+        </div>
       }
 
       {

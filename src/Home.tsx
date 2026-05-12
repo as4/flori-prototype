@@ -26,6 +26,18 @@ import './Home.css';
 const SYSTEM_PROMPT = `${DEFAULT_SYSTEM_PROMPT}\n\n${DEFAULT_EMOTION_PROMPT}`;
 const MIC_DENIED_PATTERN = /denied|not-allowed|service-not-allowed|service permission/i;
 
+const STT_LANGUAGES = [
+  {id: 'en-US', label: 'English'},
+  {id: 'ru-RU', label: 'Russian'},
+] as const;
+
+// iPadOS 13+ reports as 'MacIntel' so the touchpoints check is needed to
+// catch iPads. Desktop Safari has its own AudioContext/STT quirks that
+// differ from iOS — we gate iOS-only workarounds on this.
+const IS_IOS =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const Home = () => {
@@ -34,6 +46,7 @@ const Home = () => {
   // Password persists across reloads; the actual TTS/LLM keys live only in
   // memory, fetched via the password on mount.
   const [storedPassword, setStoredPassword] = useLocalStorage('flori-password');
+  const [sttLanguage, setSttLanguage] = useLocalStorage('flori-stt-language', 'en-US');
   const [apiKey, setApiKey] = useState('');
   const [llmKey, setLlmKey] = useState('');
 
@@ -186,15 +199,21 @@ const Home = () => {
 
   const {
     isListening,
+    transcript: sttTranscript,
     interim,
     stream,
     start: startListening,
     stop: stopListening,
     cancel: cancelListening,
   } = useSpeechRecognition({
+    lang: sttLanguage,
     onFinal: handleSttFinal,
     onError: handleSttError,
   });
+
+  // Final words confirmed so far + any unfinal trailing words — shows the
+  // whole spoken sentence in the pill, not just the wobbly tail.
+  const liveText = `${sttTranscript ?? ''} ${interim ?? ''}`.trim();
 
   if (isListening && !isListeningRef.current && pttPressStartRef.current !== null) {
     log('PTT listening activated', {elapsed: `${(performance.now() - pttPressStartRef.current).toFixed(0)}ms`});
@@ -324,8 +343,16 @@ const Home = () => {
     () => {
       setPttPressed(false);
       stopListening();
+      // iOS-only: STT held the iOS audio session in "record", which leaves
+      // the AudioContext suspended. Resume it inside this release gesture
+      // so the first TTS segment (arriving ~500ms later) plays on a live
+      // context instead of queuing on a frozen one. Desktop Safari doesn't
+      // suspend the context after STT, and keeping it running between turns
+      // causes SFSpeechRecognizer to error out on the next press
+      // (kAFAssistantErrorDomain error 7).
+      if (IS_IOS) ensureAudioReady();
     },
-    [stopListening]
+    [stopListening, ensureAudioReady]
   );
 
   const handleUnlock = useCallback(
@@ -546,7 +573,7 @@ const Home = () => {
           */}
         <div
           className={cn(
-            'absolute top-0 bottom-0 left-0 min-h-[550px]',
+            'absolute top-0 bottom-0 left-0 min-h-[600px]',
             'transition-[right] duration-300 ease-out',
             settingsOpen ? 'right-0 sm:right-[400px]' : 'right-0'
           )}
@@ -602,6 +629,7 @@ const Home = () => {
             pttState={pttState}
             stream={stream}
             interim={interim}
+            liveText={liveText}
             isListening={isListening}
             onPressStart={handlePttStart}
             onPressEnd={handlePttEnd}
@@ -643,11 +671,14 @@ const Home = () => {
         unlocked={hasKeys}
         isConnected={isConnected}
         transcript={transcript}
+        sttLanguages={STT_LANGUAGES}
+        sttLanguage={sttLanguage}
         ttftMs={ttftMs}
         ttfaMs={ttfaMs}
         onClose={closeSettings}
         onUnlock={handleUnlock}
         onDisconnect={disconnect}
+        onSttLanguageChange={setSttLanguage}
         onSwipeOffset={handleSidebarSwipe}
       />
     </>

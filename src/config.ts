@@ -27,10 +27,10 @@ export type RiveTriggerName = typeof RIVE_TRIGGERS[number];
 export const IDLE_GESTURE_TRIGGERS: RiveTriggerName[] = ['wave', 'excited_3'];
 
 // Probability of picking 'wave' when both wave and excited_* are allowed
-// (i.e. the last pick wasn't excited_*). Skews toward wave so the idle
-// pattern produces runs of waves with occasional excited bursts, instead of
-// a boring excited↔wave alternation.
-export const IDLE_GESTURE_WAVE_BIAS = 0.75;
+// (i.e. the last pick wasn't excited_*). Combined with the "no two
+// excited_* in a row" rule, 0.25 here yields ~1-in-4 excited firings
+// overall — leans toward excited while still letting wave repeat.
+export const IDLE_GESTURE_WAVE_BIAS = 0.25;
 
 // First idle gesture of the session — shorter delay so Flori feels alive
 // shortly after page load instead of standing still for 5–14s.
@@ -43,9 +43,11 @@ export const IDLE_GESTURE_DELAY_MAX_MS = 9000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// iOS Safari mutes Web Audio when the hardware silent switch is on. Setting
-// the audio session to "playback" + holding it open with a silent looping
-// source bypasses this — at the cost of warming the device and surfacing a
-// lock-screen Now Playing card. For pitches, prefer asking presenters to
-// unmute their phone over keeping the override on.
-export const OVERRIDE_IOS_SILENT_SWITCH = false;
+// iOS Safari mutes Web Audio when the hardware silent switch is on, and
+// also tears the audio path down when the user switches to another app
+// (the session never recovers — audio is gone until a full Safari
+// restart). Setting the audio session to "playback" + holding it open
+// with a silent looping source bypasses both: the silent switch is
+// ignored and the session survives app-switch. Costs: the device warms
+// faster and a lock-screen Now Playing card shows up.
+export const OVERRIDE_IOS_SILENT_SWITCH = true;

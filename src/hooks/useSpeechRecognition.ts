@@ -128,11 +128,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       const recognition = recognitionRef.current;
       if (recognition) {
         try {
-          // abort() instead of stop() — Safari's stop() is graceful and can
-          // leave the recognizer running past the user's release. The combined
-          // final + interim transcript captured in onend covers the trailing
-          // words we'd otherwise wait on stop() to flush.
-          recognition.abort();
+          // stop() (graceful) instead of abort() — Apple's
+          // AssistantServices framework returns kAFAssistantErrorDomain
+          // error 7 after enough cancelled SFSpeechRecognitionTasks in a
+          // session; abort() maps to cancel, stop() maps to finish. The
+          // small (~100-500ms) onend delay is worth not getting wedged.
+          recognition.stop();
         } catch { /* already stopped */
         }
       }
@@ -181,12 +182,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       }
 
       if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch { /* noop */
-        }
-
-        recognitionRef.current = null;
+        // Previous session's onend hasn't fired yet (graceful stop is
+        // still draining). Bail rather than aborting it — aborting here
+        // is the canceled-task pattern that triggers error 7. The user
+        // can press again once the previous turn finalizes.
+        log('STT start() — previous recognition still active, bailing');
+        return;
       }
 
       // A previous session's stream may still be open if the user re-presses
@@ -214,11 +215,12 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
       recognition.onstart = () => {
         log('STT onstart', {shouldListen: shouldListenRef.current});
         if (!shouldListenRef.current) {
-          // Consumer released before recognition spun up. abort() instead
-          // of stop() because Chrome's stop() is graceful and may keep the
-          // mic open until current results flush; abort() terminates now.
+          // Consumer released before recognition spun up. stop() instead
+          // of abort() — same reason as the main stop() path: avoid
+          // accumulating cancelled tasks that trigger error 7. A tiny
+          // bit of mic stays open until onend, which is fine.
           try {
-            recognition.abort();
+            recognition.stop();
           } catch { /* already gone */
           }
 

@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, type PointerEvent} from 'react';
+import React, {useCallback, useEffect, useRef, useState, type PointerEvent} from 'react';
 import _ from 'lodash';
 import useMicLevels, {unlockAudioContext} from '../../hooks/useMicLevels';
 import useInterimLevels from '../../hooks/useInterimLevels';
@@ -9,6 +9,9 @@ import IconAlertBadge from '../../assets/icon-alert-badge.svg?react';
 
 const BAR_COUNT = 6;
 const IDLE_BARS = [8, 16, 32, 12, 20, 8];
+// Mirror of IDLE_BARS — applied while the cursor hovers the idle button
+// so the rest pattern flips horizontally with a smooth height transition.
+const IDLE_BARS_HOVER = [...IDLE_BARS].reverse();
 
 const ACTIVE_BAR_MIN_PX = 6;
 const ACTIVE_BAR_MAX_PX = 32;
@@ -46,6 +49,8 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
   const isListeningState = state === 'listening';
   const isInitializingState = state === 'initializing';
   const isInteractive = state !== 'no-keys' && state !== 'denied';
+
+  const [isHovered, setIsHovered] = useState(false);
 
   // Cleanup fn for window-level release listeners installed on pointerdown.
   // Held in a ref so the first release wins — subsequent button or window
@@ -154,7 +159,10 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
   const bars = isListeningState ?
     _.map(levels, level => ACTIVE_BAR_MIN_PX + level * (ACTIVE_BAR_MAX_PX - ACTIVE_BAR_MIN_PX))
     :
-    IDLE_BARS;
+    isHovered && state === 'idle' ?
+      IDLE_BARS_HOVER
+      :
+      IDLE_BARS;
 
   const isDisabled = state === 'no-keys' || state === 'denied';
 
@@ -164,14 +172,14 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
     <div className="relative w-[72px] h-[72px]">
       <div
         className={cn(
-          'absolute inset-0 -m-8 rounded-full bg-[#FF5A7D]/10',
+          'absolute inset-0 -m-7 rounded-full bg-[#FF5A7D]/25',
           'animate-halo-slow transition-opacity duration-300',
           isListeningState ? 'opacity-100' : 'opacity-0'
         )}
       />
       <div
         className={cn(
-          'absolute inset-0 -m-4 rounded-full bg-[#FF5A7D]/25',
+          'absolute inset-0 -m-3 rounded-full bg-[#FF5A7D]/25',
           'animate-halo transition-opacity duration-300',
           isListeningState ? 'opacity-100' : 'opacity-0'
         )}
@@ -184,7 +192,9 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
           'select-none [-webkit-touch-callout:none] [-webkit-tap-highlight-color:transparent]',
           'transition-[background-color,box-shadow,border-color] duration-300',
           isListeningState ?
-            'bg-[#FF5A7D] border-transparent shadow-[0_0_0_8px_#FF5A7D]'
+            // Pink ring 4px (Figma's -4px inset fill = 80px outer) + drop
+            // shadow per Figma node 93:412.
+            'bg-[#FF5A7D] border-transparent shadow-[0_0_0_4px_#FF5A7D,0_4px_16px_rgba(0,0,0,0.08)]'
             :
             'bg-gradient-to-b from-white to-white/75 border-white shadow-[0_4px_16px_rgba(0,0,0,0.02)]',
           isDisabled && 'opacity-60',
@@ -195,6 +205,8 @@ const PttButton: React.FC<Props> = ({state, stream, interim, isListening, onPres
         onPointerDown={handlePointerDown}
         onPointerUp={handlePressEnd}
         onPointerCancel={handlePressEnd}
+        onPointerEnter={() => setIsHovered(true)}
+        onPointerLeave={() => setIsHovered(false)}
       >
         {
           _.map(

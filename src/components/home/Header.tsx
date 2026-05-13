@@ -28,8 +28,14 @@ const Header: React.FC<Props> = ({muted, settingsOpen, onMuteClick, onSettingsCl
           // `hidden!` because `flex` below also sets display and would win
           // on specificity otherwise. Remove the bang to restore the button.
           'hidden! w-12 h-12 flex items-center justify-center',
-          'transition-colors duration-300',
-          muted && 'from-[#FF5A7D] to-[#FF5A7D] border-transparent'
+          // Pink-when-muted overrides target the fill div directly (same
+          // DOM as default) so the hover/press transition stays continuous
+          // through the mute toggle.
+          muted && [
+            '[&_[data-pill-fill]]:from-[#FF5A7D]',
+            '[&_[data-pill-fill]]:to-[#FF5A7D]',
+            '[&_[data-pill-fill]]:border-transparent',
+          ]
         )}
         onClick={onMuteClick}
       >

@@ -136,9 +136,29 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
           recognition.stop();
         } catch { /* already stopped */
         }
+
+        // Safety net (Chrome only): Chrome occasionally doesn't fire
+        // onend after a graceful stop() on a recognition that hasn't
+        // captured any audio yet, leaving recognitionRef set forever
+        // and blocking subsequent presses. Force-clear if onend hasn't
+        // fired by then. onend's isCurrent guard makes a late onend a
+        // safe no-op. Safari fires onend reliably, so we skip the
+        // safety net there to avoid any chance of force-clearing a
+        // recognition that's still draining a real transcript.
+        if (!isSafari()) {
+          window.setTimeout(
+            () => {
+              if (recognitionRef.current !== recognition) return;
+              log('STT stop() — onend timeout, force-clearing recognition');
+              recognitionRef.current = null;
+              releaseStream();
+            },
+            3000
+          );
+        }
       }
     },
-    []
+    [releaseStream]
   );
 
   // Discard in-flight transcript and abort. Clearing the refs first means
@@ -187,6 +207,20 @@ const useSpeechRecognition = ({lang = 'en-US', onFinal, onError}: UseSpeechRecog
         // is the canceled-task pattern that triggers error 7. The user
         // can press again once the previous turn finalizes.
         log('STT start() — previous recognition still active, bailing');
+        return;
+      }
+
+      // User released while we were still awaiting acquireStream → stop()
+      // saw hadRecognition=false (we hadn't created it yet) so it just
+      // flipped shouldListenRef. Don't go ahead and start a recognition
+      // the user no longer wants — it'd wedge in Chrome (onend doesn't
+      // fire reliably when a brand-new recognition is stopped before
+      // capturing any audio).
+      if (!shouldListenRef.current) {
+        log('STT start() — released during acquireStream, skipping');
+        if (acquired) {
+          for (const track of acquired.getTracks()) track.stop();
+        }
         return;
       }
 

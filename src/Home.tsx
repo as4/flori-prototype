@@ -72,7 +72,7 @@ const Home = () => {
   const lastIdleGestureRef = useRef<RiveTriggerName | null>(null);
 
   const adapter = useMemo(
-    () => createGoogleAdapter(llmKey, HOME_LLM_MODEL),
+    () => createGoogleAdapter(llmKey, HOME_LLM_MODEL, SYSTEM_PROMPT),
     [llmKey]
   );
 
